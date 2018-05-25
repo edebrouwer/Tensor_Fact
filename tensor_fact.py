@@ -29,7 +29,7 @@ class tensor_fact(nn.Module):
 
 
 class TensorFactDataset(Dataset):
-    def __init__(self,csv_file_serie="lab_short_tensor.csv",file_path="~/Documents/Data/Full_MIMIC/",transform=None):
+    def __init__(self,csv_file_serie="lab_short_tensor.csv",file_path="~/Data/MIMIC/",transform=None):
         self.lab_short=pd.read_csv(file_path+csv_file_serie)
         self.length=len(self.lab_short.index)
         self.pat_num=self.lab_short["UNIQUE_ID"].nunique()
@@ -50,9 +50,9 @@ def main():
     import time
 
     tens_dataset=TensorFactDataset()
-    dataloader = DataLoader(tens_dataset, batch_size=1000,shuffle=True)
+    dataloader = DataLoader(tens_dataset, batch_size=1000,shuffle=True,num_workers=25)
 
-    mod=tensor_fact(n_pat=tens_dataset.pat_num,n_meas=30,n_t=101,n_u=18,n_w=2)
+    mod=tensor_fact(n_pat=tens_dataset.pat_num,n_meas=30,n_t=101,n_u=18,n_w=1)
     #mod.double()
 
     optimizer=torch.optim.Adam(mod.parameters(), lr=0.001)
@@ -61,6 +61,7 @@ def main():
 
     for epoch in range(epochs_num):
         print("EPOCH : "+str(epoch))
+        total_loss=0
         for i_batch,sampled_batch in enumerate(dataloader):
 
             print(i_batch)
@@ -77,6 +78,8 @@ def main():
             loss.backward()
             optimizer.step()
             print(time.time()-starttime)
+            total_loss+=loss
+        print("Current Training Loss :"+str(total_loss))
 
 if __name__=="__main__":
     main()
