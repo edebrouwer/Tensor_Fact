@@ -29,7 +29,7 @@ class tensor_fact(nn.Module):
 
 
 class TensorFactDataset(Dataset):
-    def __init__(self,csv_file_serie="lab_short_tensor.csv",file_path="~/Documents/Data/Full_MIMIC/",transform=None):
+    def __init__(self,csv_file_serie="lab_short_tensor.csv",file_path="~/Data/MIMIC/",transform=None):
         self.lab_short=pd.read_csv(file_path+csv_file_serie)
         self.length=len(self.lab_short.index)
         self.pat_num=self.lab_short["UNIQUE_ID"].nunique()
@@ -52,7 +52,7 @@ def main():
 
 
     tens_dataset=TensorFactDataset()
-    dataloader = DataLoader(tens_dataset, batch_size=1000,shuffle=True)
+    dataloader = DataLoader(tens_dataset, batch_size=5000,shuffle=True,num_workers=25)
 
     mod=tensor_fact(n_pat=tens_dataset.pat_num,n_meas=30,n_t=101,n_u=18,n_w=2)
     #mod.double()
