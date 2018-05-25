@@ -29,7 +29,7 @@ class tensor_fact(nn.Module):
 
 
 class TensorFactDataset(Dataset):
-    def __init__(self,csv_file_serie="lab_short_tensor.csv",file_path="~/Data/MIMIC/",transform=None):
+    def __init__(self,csv_file_serie="lab_short_tensor.csv",file_path="~/Documents/Data/Full_MIMIC/",transform=None):
         self.lab_short=pd.read_csv(file_path+csv_file_serie)
         self.length=len(self.lab_short.index)
         self.pat_num=self.lab_short["UNIQUE_ID"].nunique()
@@ -40,8 +40,8 @@ class TensorFactDataset(Dataset):
         return self.length
     def __getitem__(self,idx):
         #print(self.lab_short["VALUENUM"].iloc[idx].values)
-        return([torch.from_numpy(self.lab_short.iloc[idx][["UNIQUE_ID","LABEL_CODE","TIME_STAMP"]].astype('int64').as_matrix()),torch.from_numpy(self.lab_short.iloc[idx][self.cov_values].as_matrix()),torch.from_numpy(self.lab_short.iloc[idx][self.time_values].astype('float64').as_matrix()),torch.tensor(self.lab_short["VALUENUM"].iloc[idx],dtype=torch.double)])
-
+        #return([torch.from_numpy(self.lab_short.iloc[idx][["UNIQUE_ID","LABEL_CODE","TIME_STAMP"]].astype('int64').as_matrix()),torch.from_numpy(self.lab_short.iloc[idx][self.cov_values].as_matrix()),torch.from_numpy(self.lab_short.iloc[idx][self.time_values].astype('float64').as_matrix()),torch.tensor(self.lab_short["VALUENUM"].iloc[idx],dtype=torch.double)])
+        return(self.lab_short.iloc[idx].as_matrix())
 
 def main():
     #With Adam optimizer
@@ -49,10 +49,8 @@ def main():
 
     import time
 
-
-
     tens_dataset=TensorFactDataset()
-    dataloader = DataLoader(tens_dataset, batch_size=5000,shuffle=True,num_workers=25)
+    dataloader = DataLoader(tens_dataset, batch_size=1000,shuffle=True)
 
     mod=tensor_fact(n_pat=tens_dataset.pat_num,n_meas=30,n_t=101,n_u=18,n_w=2)
     #mod.double()
@@ -68,9 +66,14 @@ def main():
             print(i_batch)
             starttime=time.time()
 
+            indexes=sampled_batch[:,1:4].to(torch.long)
+            cov_u=sampled_batch[:,4:-1]
+            cov_w=sampled_batch[:,3].unsqueeze(1)
+            target=sampled_batch[:,-1]
+
             optimizer.zero_grad()
-            preds=mod.forward(sampled_batch[0][:,0],sampled_batch[0][:,1],sampled_batch[0][:,2],sampled_batch[1],sampled_batch[2])
-            loss=criterion(preds,sampled_batch[3])
+            preds=mod.forward(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
+            loss=criterion(preds,target)
             loss.backward()
             optimizer.step()
             print(time.time()-starttime)
