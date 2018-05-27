@@ -46,7 +46,6 @@ class TensorFactDataset(Dataset):
 def main():
     #With Adam optimizer
 
-
     import time
 
     tens_dataset=TensorFactDataset()
