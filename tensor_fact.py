@@ -65,10 +65,10 @@ def main():
     train_hist=np.array([])
     val_hist=np.array([])
 
-    mod=tensor_fact(n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=8,n_u=18,n_w=1)
+    mod=tensor_fact(n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=8,n_u=18,n_w=1) 
     mod.double()
 
-    optimizer=torch.optim.Adam(mod.parameters(), lr=0.03)
+    optimizer=torch.optim.Adam(mod.parameters(), lr=0.01) #previously lr 0.03 with good rmse
     criterion = nn.MSELoss()#
     epochs_num=150
 
@@ -99,7 +99,7 @@ def main():
         print("Current Training Loss :"+str(total_loss/(i_batch+1)))
         print("TOTAL TIME :"+str(time.time()-Epoch_time))
         print("Computation Time:"+str(t_tot))
-        train_hist=np.append(train_hist,total_loss/(i_batch+1))
+        train_hist=np.append(train_hist,total_loss.item()/(i_batch+1))
 
         with torch.no_grad():
             for i_val,batch_val in enumerate(dataloader_val):
