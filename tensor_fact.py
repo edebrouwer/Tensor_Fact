@@ -30,9 +30,6 @@ class tensor_fact(nn.Module):
         return(pred)
     def forward_full(self,idx_pat,cov_u):
         cov_w=torch.tensor(range(0,101)).unsqueeze(1).double()
-        print((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u)).size())
-        print((self.meas_lat.weight).size())
-        print((self.time_lat.weight+torch.mm(cov_w,self.beta_w)).size())
         pred=torch.einsum('il,jkl->ijk',((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u),torch.einsum("il,jl->ijl",(self.meas_lat.weight,(self.time_lat.weight+torch.mm(cov_w,self.beta_w)))))))
         #pred=((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u))*(self.meas_lat.weight)*(self.time_lat.weight+torch.mm(cov_w,self.beta_w))).sum(1)
         return(pred)
@@ -64,6 +61,9 @@ def main():
     val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val.csv")
     dataloader = DataLoader(train_dataset, batch_size=65000,shuffle=True,num_workers=30)
     dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
+
+    train_hist=np.array([])
+    val_hist=np.array([])
 
     mod=tensor_fact(n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=8,n_u=18,n_w=1)
     mod.double()
@@ -99,6 +99,7 @@ def main():
         print("Current Training Loss :"+str(total_loss/(i_batch+1)))
         print("TOTAL TIME :"+str(time.time()-Epoch_time))
         print("Computation Time:"+str(t_tot))
+        train_hist=train_hist.append(total_loss/(i_batch+1))
 
         with torch.no_grad():
             for i_val,batch_val in enumerate(dataloader_val):
@@ -109,6 +110,7 @@ def main():
                 pred_val=mod.forward(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
                 loss_val=criterion(pred_val,target)
                 print("Validation Loss :"+str(loss_val))
+                val_hist=val_hist.append(loss_val)
 
     torch.save(mod.state_dict(),"current_model.pt")
 

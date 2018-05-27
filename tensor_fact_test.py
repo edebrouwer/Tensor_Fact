@@ -19,7 +19,6 @@ import matplotlib.pyplot as plt
 import sys
 
 import matplotlib
-matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 class TensorTestDataset(Dataset):
@@ -46,14 +45,43 @@ def load_current_model(): #Function to load the saved model.
     mod.load_state_dict(torch.load("current_model.pt"))
     return(mod)
 
-#if __name__=="main"
-mod=load_current_model()
-criterion=nn.MSELoss()
-val_dataset=TensorTestDataset(csv_file_serie="lab_short_tensor_val.csv")
+def main():
+    first_pass=True
+    pat_change="n"
+    while(True):
+        mod=load_current_model()
+        criterion=nn.MSELoss()
+        val_dataset=TensorTestDataset(csv_file_serie="lab_short_tensor_val.csv")
+        train_data=pd.read_csv("~/Documents/Data/Full_MIMIC/lab_short_tensor_train.csv")
+        val_data=pd.read_csv("~/Documents/Data/Full_MIMIC/lab_short_tensor_val.csv")
 
-pat_idx=3
-pat_sample=torch.tensor(val_dataset[pat_idx]).double()
-preds=mod.forward_full(pat_sample[0].to(torch.long),pat_sample[1:].unsqueeze(0))
+        if (not first_pass):
+            pat_change=input("Do you want to change the patient index ? [y/n]")
 
-plt.plot(preds.detach().numpy()[:,0,:].T)
-plt.show()
+        if (pat_change=="y" or first_pass):
+            pat_idx=int(input("Enter the index of the patient you want to plot :"))
+            assert(isinstance(pat_idx,int))
+            pat_sample=torch.tensor(val_dataset[pat_idx]).double()
+            preds=mod.forward_full(pat_sample[0].to(torch.long),pat_sample[1:].unsqueeze(0))
+
+        feat_idx=int(input("Enter the index of the feature you want to plot :"))
+        assert(isinstance(feat_idx,int))
+
+        targets=train_data.loc[(train_data["UNIQUE_ID"]==pat_sample[0])&(train_data["LABEL_CODE"]==feat_idx)][["TIME_STAMP","VALUENORM"]].values
+        targets_val=val_data.loc[(val_data["UNIQUE_ID"]==pat_sample[0])&(val_data["LABEL_CODE"]==feat_idx)][["TIME_STAMP","VALUENORM"]].values
+        plt.plot(preds.detach().numpy()[:,feat_idx,:].T,label="Inferred curve")
+        plt.scatter(targets[:,0],targets[:,1],label="Training Data")
+        plt.scatter(targets_val[:,0],targets_val[:,1],label="Validation Data")
+        plt.legend()
+        plt.show()
+
+        first_pass=False
+
+def plot_latent_times():
+    mod=load_current_model()
+    plt.plot(mod.time_lat.weight.detach().numpy())
+    plt.show()
+    print(mod.pat_lat.weight)
+
+if __name__=="__main__":
+    plot_latent_times()
