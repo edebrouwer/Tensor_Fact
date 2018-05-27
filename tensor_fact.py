@@ -28,6 +28,14 @@ class tensor_fact(nn.Module):
     def forward(self,idx_pat,idx_meas,idx_t,cov_u,cov_w):
         pred=((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(cov_w,self.beta_w))).sum(1)
         return(pred)
+    def forward_full(self,idx_pat,cov_u):
+        cov_w=torch.tensor(range(0,101)).unsqueeze(1).double()
+        print((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u)).size())
+        print((self.meas_lat.weight).size())
+        print((self.time_lat.weight+torch.mm(cov_w,self.beta_w)).size())
+        pred=torch.einsum('il,jkl->ijk',((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u),torch.einsum("il,jl->ijl",(self.meas_lat.weight,(self.time_lat.weight+torch.mm(cov_w,self.beta_w)))))))
+        #pred=((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u))*(self.meas_lat.weight)*(self.time_lat.weight+torch.mm(cov_w,self.beta_w))).sum(1)
+        return(pred)
 
 
 class TensorFactDataset(Dataset):
