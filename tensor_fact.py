@@ -99,7 +99,7 @@ def main():
         print("Current Training Loss :"+str(total_loss/(i_batch+1)))
         print("TOTAL TIME :"+str(time.time()-Epoch_time))
         print("Computation Time:"+str(t_tot))
-        train_hist=train_hist.append(total_loss/(i_batch+1))
+        train_hist=np.append(train_hist,total_loss/(i_batch+1))
 
         with torch.no_grad():
             for i_val,batch_val in enumerate(dataloader_val):
@@ -110,9 +110,11 @@ def main():
                 pred_val=mod.forward(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
                 loss_val=criterion(pred_val,target)
                 print("Validation Loss :"+str(loss_val))
-                val_hist=val_hist.append(loss_val)
+                val_hist=np.append(val_hist,loss_val)
 
     torch.save(mod.state_dict(),"current_model.pt")
+    torch.save(train_hist,"train_history.pt")
+    torch.save(val_hist,"validation_history.pt")
 
 if __name__=="__main__":
     main()
