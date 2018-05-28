@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 
 
 
-class tensor_fact_bias_only(nn.Module):
+class tensor_fact_bias(nn.Module):
     def __init__(self,n_pat=10,n_meas=5,n_t=25,l_dim=1):
         super(tensor_fact,self).__init__()
         self.n_pat=n_pat
@@ -52,7 +52,7 @@ def main():
     train_hist=np.array([])
     val_hist=np.array([])
 
-    mod=tensor_fact_bias_only(n_pat=train_dataset.pat_num,n_meas=30,n_t=101)
+    mod=tensor_fact_bias(n_pat=train_dataset.pat_num,n_meas=30,n_t=101)
     mod.double()
 
     optimizer=torch.optim.Adam(mod.parameters(), lr=0.01) #previously lr 0.03 with good rmse
