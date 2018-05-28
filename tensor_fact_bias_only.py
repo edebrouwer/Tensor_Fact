@@ -105,9 +105,9 @@ def main():
                 print("Validation Loss :"+str(loss_val))
                 val_hist=np.append(val_hist,loss_val)
 
-    torch.save(mod.state_dict(),"current_model_bias.pt")
-    torch.save(train_hist,"train_history_bias.pt")
-    torch.save(val_hist,"validation_history_bias.pt")
+    torch.save(mod.state_dict(),"current_model.pt")
+    torch.save(train_hist,"train_history.pt")
+    torch.save(val_hist,"validation_history.pt")
 
 if __name__=="__main__":
     main()
