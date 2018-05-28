@@ -70,7 +70,7 @@ def main():
 
     optimizer=torch.optim.Adam(mod.parameters(), lr=0.02) #previously lr 0.03 with good rmse
     criterion = nn.MSELoss()#
-    epochs_num=250
+    epochs_num=500
 
     for epoch in range(epochs_num):
         print("EPOCH : "+str(epoch))
