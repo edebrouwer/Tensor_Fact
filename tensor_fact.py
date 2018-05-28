@@ -23,14 +23,14 @@ class tensor_fact(nn.Module):
         self.meas_lat=nn.Embedding(n_meas,l_dim)
         self.meas_lat.weight=nn.Parameter(0.25*torch.randn([n_meas,l_dim]))
         self.time_lat=nn.Embedding(n_t,l_dim).double()
-        self.time_lat.weight=nn.Parameter(0.25*torch.randn([n_t,l_dim]))
+        self.time_lat.weight=nn.Parameter(0.005*torch.randn([n_t,l_dim]))
         self.beta_u=nn.Parameter(torch.randn([n_u,l_dim],requires_grad=True).double())
         self.beta_w=nn.Parameter(torch.randn([n_w,l_dim],requires_grad=True).double())
 
         #Kernel_computation
         x_samp=np.linspace(0,(n_t-1),n_t)
         SexpKernel=np.exp(-(np.array([x_samp]*n_t)-np.expand_dims(x_samp.T,axis=1))**2/(2*l_kernel**2))
-        SexpKernel[SexpKernel<0.0001]=0
+        SexpKernel[SexpKernel<0.1]=0
         self.inv_Kernel=torch.tensor(np.linalg.inv(SexpKernel)/sig2_kernel,requires_grad=False)
 
     def forward(self,idx_pat,idx_meas,idx_t,cov_u,cov_w):
@@ -42,7 +42,7 @@ class tensor_fact(nn.Module):
         #pred=((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u))*(self.meas_lat.weight)*(self.time_lat.weight+torch.mm(cov_w,self.beta_w))).sum(1)
         return(pred)
     def compute_regul(self):
-        regul=torch.exp(torch.mm(torch.mm(torch.t(self.time_lat.weight),self.inv_Kernel),self.time_lat.weight))
+        regul=torch.trace(torch.exp(-torch.mm(torch.mm(torch.t(self.time_lat.weight),self.inv_Kernel),self.time_lat.weight)))
         return(regul)
 
 
@@ -101,8 +101,10 @@ def main():
 
             optimizer.zero_grad()
             preds=mod.forward(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
-            loss=criterion(preds,target)-mod.compute_regul()
+            #print(mod.compute_regul())
+            loss=criterion(preds,target)#-mod.compute_regul()
             loss.backward()
+            # print(mod.time_lat.weight.grad)
             optimizer.step()
             t_flag=time.time()-starttime
             #print(t_flag)
