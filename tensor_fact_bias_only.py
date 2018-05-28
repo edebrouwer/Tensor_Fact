@@ -73,7 +73,7 @@ def main():
             target=sampled_batch[:,-1]
 
             optimizer.zero_grad()
-            preds=mod.forward(indexes[:,0],indexes[:,1],indexes[:,2])
+            preds=mod.forward(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
             loss=criterion(preds,target)
             loss.backward()
             optimizer.step()
