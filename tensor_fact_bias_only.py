@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 
 class tensor_fact_bias(nn.Module):
     def __init__(self,n_pat=10,n_meas=5,n_t=25,l_dim=1):
-        super(tensor_fact,self).__init__()
+        super(tensor_fact_bias,self).__init__()
         self.n_pat=n_pat
         self.n_meas=n_meas
         self.n_t=n_t
