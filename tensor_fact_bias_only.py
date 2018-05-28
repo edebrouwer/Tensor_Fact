@@ -37,9 +37,9 @@ class tensor_fact_bias(nn.Module):
         self.meas_lat=nn.Embedding(n_meas,l_dim)
         self.meas_lat.weight=nn.Parameter(0.25*torch.randn([n_meas,l_dim]))
         self.time_lat=nn.Embedding(n_t,l_dim).double()
-        self.beta_u=nn.Parameter(torch.randn([n_u,l_dim],requires_grad=True).double())
-        self.beta_w=nn.Parameter(torch.randn([n_w,l_dim],requires_grad=True).double())
-    def forward(self,idx_pat,idx_meas,idx_t):
+        self.beta_u=0.05*nn.Parameter(torch.randn([n_u,l_dim],requires_grad=True).double())
+        self.beta_w=0.05*nn.Parameter(torch.randn([n_w,l_dim],requires_grad=True).double())
+    def forward(self,idx_pat,idx_meas,idx_t,cov_u,cov_w):
         pred=((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u))+(self.meas_lat(idx_meas))+(self.time_lat(idx_t)+torch.mm(cov_w,self.beta_w)))
         return(pred)
 
@@ -56,7 +56,7 @@ def main():
     train_hist=np.array([])
     val_hist=np.array([])
 
-    mod=tensor_fact_bias(n_pat=train_dataset.pat_num,n_meas=30,n_t=101,,n_u=18,n_w=1)
+    mod=tensor_fact_bias(n_pat=train_dataset.pat_num,n_meas=30,n_t=101,n_u=18,n_w=1)
     mod.double()
 
     optimizer=torch.optim.Adam(mod.parameters(), lr=0.01) #previously lr 0.03 with good rmse
