@@ -10,7 +10,7 @@ from torch.utils.data import Dataset, DataLoader
 
 from torch.autograd import Variable
 
-from tensor_fact import tensor_fact, TensorFactDataset
+from tensor_fact import tensor_fact
 
 import matplotlib
 matplotlib.use('agg')
@@ -21,9 +21,9 @@ import sys
 import matplotlib
 import matplotlib.pyplot as plt
 
-def load_current_model(directory="~/Projects/Tensor_Fact/trained_models/8_dim_500epochs_lr02/"): #Function to load the saved model.
-    train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train.csv",file_path="~/Data/MIMIC/")
-    mod=tensor_fact(n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=8,n_u=18,n_w=1)
+def load_current_model(directory): #Function to load the saved model.
+    loaded_mod=torch.load(directory+"current_model.pt")
+    mod=tensor_fact(n_pat=loaded_mod["pat_lat.weight"].size(0),n_meas=loaded_mod["meas_lat.weight"].size(0),n_t=loaded_mod["time_lat.weight"].size(0),l_dim=loaded_mod["meas_lat.weight"].size(1),n_u=loaded_mod["beta_u"].size(0),n_w=loaded_mod["beta_w"].size(0))
     mod.double()
     mod.load_state_dict(torch.load(directory+"current_model.pt"))
     return(mod)
@@ -37,4 +37,5 @@ def plot_latent_times(directory):
 
 #One should give the path of the directory as argument.
 if __name__=="__main__":
+    sys.path.append('../')
     plot_latent_times(directory=sys.argv[1:][0])
