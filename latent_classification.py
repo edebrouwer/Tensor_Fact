@@ -26,7 +26,7 @@ tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 print("Data is Loaded")
 
 def roc_comp(train_test):
-    print("roc_comp with C parameter ="+str(clf.get_params()["C"]))
+    #print("roc_comp with C parameter ="+str(clf.get_params()["C"]))
     probas_=clf.fit(latent_pat[train_test[0]],tag_mat[train_test[0]]).predict_proba(latent_pat[train_test[1]])
     fpr, tpr, thresholds = roc_curve(tag_mat[train_test[1]], probas_[:, 1])
     roc_auc = auc(fpr, tpr)
@@ -46,11 +46,11 @@ def compute_AUC(c):
 
         global clf
         clf=svm.SVC(C=c,class_weight="balanced",probability=True)
-    
+
 
         mean_fpr=np.linspace(0,1,100)
-        
-        print("Start New mp")
+
+        print("Start New mp with parameter C = "+str(c))
         pool=mp.Pool(processes=10)#, initializer=init)
         results = pool.map(roc_comp,cv.split(latent_pat,tag_mat))
 
@@ -85,9 +85,9 @@ def compute_AUC(c):
         plt.ylabel('True Positive Rate')
         plt.title('Receiver operating characteristic example')
         plt.legend(loc="lower right")
-        print("Saving Figure")
+        print("Saving Figure for C = "+str(c))
         plt.savefig(file_path+"AUC_SVM_C"+str(c).replace(".","_")+".pdf")
-        print("Done")
+        print("Done with thread C = "+str(c))
         return(0)
 
 class NoDaemonProcess(Process):
