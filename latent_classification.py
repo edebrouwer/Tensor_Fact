@@ -56,10 +56,17 @@ for c in [10]:
     results = pool.map(roc_comp,cv.split(latent_pat,tag_mat))
 
 
-    print(results.shape)
-    print(results[0].shape)
-
-
+    print(type(results))
+    print(len(results))
+    print(len(results[0]))
+    print(type(results[0][0]))
+    tprs=[interp(mean_fpr,fpr,tpr) for fpr,tpr,roc_auc in results]
+    print(tprs)
+    roc_aucs=[auc(fpr,tpr) for fpr,tpr,roc_auc in results]
+    print(roc_aucs)
+    for fpr,tpr,roc_auc in results:
+        plt.plot(fpr,tpr,lw=1,alpha=0.3)
+    plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
        # tprs.append(interp(mean_fpr, fpr, tpr))
        # tprs[-1][0] = 0.0
        # roc_auc = auc(fpr, tpr)
@@ -68,27 +75,24 @@ for c in [10]:
        # i+=1
     #plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
 
-    #mean_tpr = np.mean(tprs, axis=0)
-    #mean_tpr[-1] = 1.0
-    #mean_auc = auc(mean_fpr, mean_tpr)
-    #std_auc = np.std(aucs)
-    #plt.plot(mean_fpr, mean_tpr, color='b',
-#                     label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),
- #                             lw=2, alpha=.8)
+    mean_tpr = np.mean(tprs, axis=0)
+    mean_tpr[-1] = 1.0
+    mean_auc = auc(mean_fpr, mean_tpr)
+    std_auc = np.std(roc_aucs)
+    plt.plot(mean_fpr, mean_tpr, color='b',label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),lw=2, alpha=.8)
 
-    #std_tpr = np.std(tprs, axis=0)
-    #tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
-    #tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
-    #plt.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,
-  #                           label=r'$\pm$ 1 std. dev.')
+    std_tpr = np.std(tprs, axis=0)
+    tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
+    tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
+    plt.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,label=r'$\pm$ 1 std. dev.')
 
-    #plt.xlim([-0.05, 1.05])
-    #plt.ylim([-0.05, 1.05])
-    #plt.xlabel('False Positive Rate')
-    #plt.ylabel('True Positive Rate')
-    #plt.title('Receiver operating characteristic example')
-    #plt.legend(loc="lower right")
-    #plt.savefig(file_path+"AUC_SVM_C"+str(c)+".pdf")
+    plt.xlim([-0.05, 1.05])
+    plt.ylim([-0.05, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver operating characteristic example')
+    plt.legend(loc="lower right")
+    plt.savefig(file_path+"AUC_SVM_C"+str(c)+".pdf")
 
 
     #scores=cross_val_score(clf,latent_pat,tag_mat,cv=10)
