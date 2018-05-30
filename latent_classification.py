@@ -10,20 +10,38 @@ import matplotlib.pyplot as plt
 from itertools import cycle
 from sklearn.metrics import roc_curve,auc
 from sklearn.model_selection import StratifiedKFold
-
+import multiprocessing as mp
 
 file_path="./trained_models/8_dim_250_lr02/"
 latent_pat=torch.load(file_path+"current_model.pt")["pat_lat.weight"].numpy()
 tags=pd.read_csv("~/Data/MIMIC/death_tag_tensor.csv").sort_values("UNIQUE_ID")
 tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 
+print("Data is Loaded")
+
+def roc_comp(train_test):
+    print("roc_comp")
+    probas_=clf.fit(latent_pat[train_test[0]],tag_mat[train_test[0]]).predict_proba(latent_pat[train_test[1]])
+    print("probas computed")
+    fpr, tpr, thresholds = roc_curve(tag_mat[train_test[1]], probas_[:, 1])
+    roc_auc = auc(fpr, tpr)
+    return([fpr,tpr,roc_auc])
+
+def init():
+    global latent_pat, tag_mat
+    latent_pat=torch.load(file_path+"current_model.pt")["pat_lat.weight"].numpy()
+    tags=pd.read_csv("~/Data/MIMIC/death_tag_tensor.csv").sort_values("UNIQUE_ID")
+    tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
+
+    print("initialization complete")
+
 mean_res=[]
 std_res=[]
-for c in [0.01,10,100]:
+for c in [10]:
 
 
     cv=StratifiedKFold(n_splits=10)
-    print("Baseline : "+str(1-np.sum(tag_mat)/tag_mat.shape[0]))
+    #print("Baseline : "+str(1-np.sum(tag_mat)/tag_mat.shape[0]))
 
     clf=svm.SVC(C=c,class_weight="balanced",probability=True)
 
@@ -32,6 +50,16 @@ for c in [0.01,10,100]:
     aucs=[]
     mean_fpr=np.linspace(0,1,100)
     i=0
+    
+    print("Start mp")
+    pool=mp.Pool(processes=10, initializer=init)
+    results = pool.map(roc_comp,cv.split(latent_pat,tag_mat))
+
+
+    print(results)
+
+
+
     for train, test in cv.split(latent_pat,tag_mat):
         probas_=clf.fit(latent_pat[train],tag_mat[train]).predict_proba(latent_pat[test])
         #COmpute ROC curve and AUC
