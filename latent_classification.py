@@ -15,7 +15,11 @@ from multiprocessing.pool import Pool as PoolParent
 from multiprocessing import Process, Pool
 
 file_path="./trained_models/8_dim_250_lr02/"
-latent_pat=torch.load(file_path+"current_model.pt")["pat_lat.weight"].numpy()
+latents=torch.load(file_path+"current_model.pt")["pat_lat.weight"].numpy() #latents without covariates
+covariates=pd.read_csv("~/Data/MIMIC/lab_covariates_val.csv").as_matrix() #covariates
+beta_u=torch.load(file_path+"current_model.pt")["beta_u"].numpy() #Coeffs for covariates
+latent_pat=np.dot(covariates[:,1:],beta_u)
+
 tags=pd.read_csv("~/Data/MIMIC/death_tag_tensor.csv").sort_values("UNIQUE_ID")
 tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 
@@ -46,7 +50,7 @@ def compute_AUC(c):
 
         mean_fpr=np.linspace(0,1,100)
         
-        print("Start mp")
+        print("Start New mp")
         pool=mp.Pool(processes=10)#, initializer=init)
         results = pool.map(roc_comp,cv.split(latent_pat,tag_mat))
 
@@ -81,7 +85,9 @@ def compute_AUC(c):
         plt.ylabel('True Positive Rate')
         plt.title('Receiver operating characteristic example')
         plt.legend(loc="lower right")
+        print("Saving Figure")
         plt.savefig(file_path+"AUC_SVM_C"+str(c).replace(".","_")+".pdf")
+        print("Done")
         return(0)
 
 class NoDaemonProcess(Process):
@@ -96,7 +102,7 @@ class MyPool(PoolParent):
 
 
 C_vec=[0.0001,0.001,0.01,1,10,100,1000]
-main_pool=MyPool(processes=2)
+main_pool=MyPool(processes=3)
 main_pool.map(compute_AUC,C_vec)
 
     #scores=cross_val_score(clf,latent_pat,tag_mat,cv=10)
