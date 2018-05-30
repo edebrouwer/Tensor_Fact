@@ -6,17 +6,20 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+
+
 from torch.utils.data import Dataset, DataLoader
 
 from torch.autograd import Variable
 
+import sys
+sys.path.append("../")
 from tensor_fact import tensor_fact
 
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-import sys
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -32,10 +35,9 @@ def plot_latent_times(directory):
     mod=load_current_model(directory)
     plt.plot(mod.time_lat.weight.detach().numpy())
     plt.title("Latent time series")
-    plt.savefig("latent_times.pdf")
+    plt.savefig(directory+"latent_times.pdf")
     #print(mod.pat_lat.weight)
 
 #One should give the path of the directory as argument.
 if __name__=="__main__":
-    sys.path.append('../')
     plot_latent_times(directory=sys.argv[1:][0])
