@@ -15,10 +15,10 @@ from multiprocessing.pool import Pool as PoolParent
 from multiprocessing import Process, Pool
 
 file_path="./trained_models/8_dim_250_lr02/"
-latents=torch.load(file_path+"current_model.pt")["pat_lat.weight"].numpy() #latents without covariates
-covariates=pd.read_csv("~/Data/MIMIC/lab_covariates_val.csv").as_matrix() #covariates
-beta_u=torch.load(file_path+"current_model.pt")["beta_u"].numpy() #Coeffs for covariates
-latent_pat=np.dot(covariates[:,1:],beta_u)
+latent_pat=torch.load(file_path+"current_model.pt")["pat_lat.weight"].numpy() #latents without covariates
+#covariates=pd.read_csv("~/Data/MIMIC/lab_covariates_val.csv").as_matrix() #covariates
+#beta_u=torch.load(file_path+"current_model.pt")["beta_u"].numpy() #Coeffs for covariates
+#latent_pat=np.dot(covariates[:,1:],beta_u)
 
 tags=pd.read_csv("~/Data/MIMIC/death_tag_tensor.csv").sort_values("UNIQUE_ID")
 tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
@@ -53,7 +53,9 @@ def compute_AUC(c):
         print("Start New mp with parameter C = "+str(c))
         pool=mp.Pool(processes=10)#, initializer=init)
         results = pool.map(roc_comp,cv.split(latent_pat,tag_mat))
-
+        print("Results dim for C = "+str(c)+" is "+str(len(results)))
+        pool.close()
+        pool.join()
 
         tprs=[interp(mean_fpr,fpr,tpr) for fpr,tpr,roc_auc in results]
         roc_aucs=[auc(fpr,tpr) for fpr,tpr,roc_auc in results]
