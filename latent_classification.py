@@ -19,7 +19,7 @@ tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 
 mean_res=[]
 std_res=[]
-for c in [10]:
+for c in [0.01,10,100]:
 
 
     cv=StratifiedKFold(n_splits=10)
@@ -27,7 +27,7 @@ for c in [10]:
 
     clf=svm.SVC(C=c,class_weight="balanced",probability=True)
 
-       
+
     tprs=[]
     aucs=[]
     mean_fpr=np.linspace(0,1,100)
@@ -64,7 +64,7 @@ for c in [10]:
     plt.ylabel('True Positive Rate')
     plt.title('Receiver operating characteristic example')
     plt.legend(loc="lower right")
-    plt.savefig("AUC_SVM.pdf")
+    plt.savefig(file_path+"AUC_SVM_C"+str(c)+".pdf")
 
 
     scores=cross_val_score(clf,latent_pat,tag_mat,cv=10)
