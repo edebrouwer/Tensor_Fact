@@ -27,6 +27,11 @@ class tensor_fact(nn.Module):
         self.beta_u=nn.Parameter(torch.randn([n_u,l_dim],requires_grad=True).double())
         self.beta_w=nn.Parameter(torch.randn([n_w,l_dim],requires_grad=True).double())
 
+        full_dim=(n_pat+n_meas+n_t)*l_dim+n_u+n_w
+        self.layer_1=nn.Linear(full_dim,50)
+        self.layer_2=nn.Linear(50,20)
+        self.last_layer=nn.Linear(20,1)
+
         #Kernel_computation
         x_samp=np.linspace(0,(n_t-1),n_t)
         SexpKernel=np.exp(-(np.array([x_samp]*n_t)-np.expand_dims(x_samp.T,axis=1))**2/(2*l_kernel**2))
@@ -41,6 +46,9 @@ class tensor_fact(nn.Module):
         pred=torch.einsum('il,jkl->ijk',((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u),torch.einsum("il,jl->ijl",(self.meas_lat.weight,(self.time_lat.weight+torch.mm(cov_w,self.beta_w)))))))
         #pred=((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u))*(self.meas_lat.weight)*(self.time_lat.weight+torch.mm(cov_w,self.beta_w))).sum(1)
         return(pred)
+    def forward_DL(self,idx_pat,idx_meas,idx_t,cov_u,cov_w):
+        merged_input=torch.cat(self.pat_lat(idx_pat),cov_u)
+        print(merged_input)
     def compute_regul(self):
         regul=torch.trace(torch.exp(-torch.mm(torch.mm(torch.t(self.time_lat.weight),self.inv_Kernel),self.time_lat.weight)))
         return(regul)
