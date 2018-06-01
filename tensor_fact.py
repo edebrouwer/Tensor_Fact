@@ -24,9 +24,9 @@ parser.add_argument('--DL',action='store_true',help="To switch to Deep Learning 
 #GPU args
 parser.add_argument('--cuda',action='store_true')
 parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu to use for computation")
-#print("GPU num used : "+str(torch.cuda.current_device()))
-        #print("GPU used : "+str(torch.cuda.get_device_name(torch.cuda.current_device())))
-        
+#Savings args
+parser.add_argument('--outfile',default="./",type=str,help="Path to save the models and outpus")
+
 
 class tensor_fact(nn.Module):
     def __init__(self,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,l_kernel=3,sig2_kernel=1):
@@ -104,8 +104,6 @@ class TensorFactDataset(Dataset):
 
 def main():
     #With Adam optimizer
-
-
     opt=parser.parse_args()
     import time
 
@@ -115,13 +113,13 @@ def main():
         gpu_id="0"
 
     os.environ["CUDA_VISIBLE_DEVICES"]=gpu_id
-    
+
     if opt.cuda:
         device=torch.device("cuda:0")
     else:
         device=torch.device("cpu")
     print("Device : "+str(device))
-    
+
     print("GPU num used : "+str(torch.cuda.current_device()))
     print("GPU used : "+str(torch.cuda.get_device_name(torch.cuda.current_device())))
 
@@ -148,9 +146,10 @@ def main():
     criterion = nn.MSELoss()#
     epochs_num=opt.epochs
 
+    lowest_val=1
     for epoch in range(epochs_num):
         print("EPOCH : "+str(epoch))
-        
+
         total_loss=0
         t_tot=0
         Epoch_time=time.time()
@@ -191,6 +190,9 @@ def main():
                 loss_val=criterion(pred_val,target)
                 print("Validation Loss :"+str(loss_val))
                 val_hist=np.append(val_hist,loss_val)
+                if loss_val<lowest_val:
+                    torch.save(mod.state_dict(),"best_model.pt")
+                    lowest_val=loss_val
 
     torch.save(mod.state_dict(),"current_model.pt")
     torch.save(train_hist,"train_history.pt")
