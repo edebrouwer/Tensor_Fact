@@ -191,12 +191,12 @@ def main():
                 print("Validation Loss :"+str(loss_val))
                 val_hist=np.append(val_hist,loss_val)
                 if loss_val<lowest_val:
-                    torch.save(mod.state_dict(),"best_model.pt")
+                    torch.save(mod.state_dict(),opt.outfile+"best_model.pt")
                     lowest_val=loss_val
 
-    torch.save(mod.state_dict(),"current_model.pt")
-    torch.save(train_hist,"train_history.pt")
-    torch.save(val_hist,"validation_history.pt")
+    torch.save(mod.state_dict(),opt.outfile+"current_model.pt")
+    torch.save(train_hist,opt.outfile+"train_history.pt")
+    torch.save(val_hist,opt.outfile+"validation_history.pt")
 
 if __name__=="__main__":
     main()
