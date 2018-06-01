@@ -105,8 +105,9 @@ class MyPool(PoolParent):
 
 C_vec=[0.0001,0.001,0.01,1,10,100,1000]
 main_pool=MyPool(processes=3)
-main_pool.map(compute_AUC,C_vec)
-
+#main_pool.map(compute_AUC,C_vec)
+res=[main_pool.apply_async(compute_AUC,(c,)) for c in C_vec]
+result_fin=[r.get() for r in res]
     #scores=cross_val_score(clf,latent_pat,tag_mat,cv=10)
     #print("C values : "+str(c))
     #print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))

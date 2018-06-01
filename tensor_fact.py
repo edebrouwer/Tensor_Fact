@@ -1,4 +1,5 @@
 
+import argparse
 import pandas as pd
 import numpy as np
 import torch
@@ -6,8 +7,26 @@ import torch.nn as nn
 
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-
+import torch.nn.functional as F
+import os
 #Check Ethan Rosenthal github
+
+
+
+
+parser=argparse.ArgumentParser(description="Longitudinal Tensor Factorization")
+
+#Model parameters
+parser.add_argument('--lr',default=0.02,help="Learning rate of the optimizer")
+parser.add_argument('--epochs',default=250,help="Number of epochs")
+#Model selection
+parser.add_argument('--DL',action='store_true',help="To switch to Deep Learning model")
+#GPU args
+parser.add_argument('--cuda',action='store_true')
+parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu to use for computation")
+#print("GPU num used : "+str(torch.cuda.current_device()))
+        #print("GPU used : "+str(torch.cuda.get_device_name(torch.cuda.current_device())))
+        
 
 class tensor_fact(nn.Module):
     def __init__(self,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,l_kernel=3,sig2_kernel=1):
@@ -22,12 +41,13 @@ class tensor_fact(nn.Module):
         self.pat_lat.weight=nn.Parameter(0.25*torch.randn([n_pat,l_dim]))
         self.meas_lat=nn.Embedding(n_meas,l_dim)
         self.meas_lat.weight=nn.Parameter(0.25*torch.randn([n_meas,l_dim]))
-        self.time_lat=nn.Embedding(n_t,l_dim).double()
+        self.time_lat=nn.Embedding(n_t,l_dim)#.double()
         self.time_lat.weight=nn.Parameter(0.005*torch.randn([n_t,l_dim]))
-        self.beta_u=nn.Parameter(torch.randn([n_u,l_dim],requires_grad=True).double())
-        self.beta_w=nn.Parameter(torch.randn([n_w,l_dim],requires_grad=True).double())
+        self.beta_u=nn.Parameter(torch.randn([n_u,l_dim],requires_grad=True))#.double())
+        self.beta_w=nn.Parameter(torch.randn([n_w,l_dim],requires_grad=True))#.double())
 
-        full_dim=(n_pat+n_meas+n_t)*l_dim+n_u+n_w
+        full_dim=3*l_dim+n_u+n_w
+        #print(full_dim)
         self.layer_1=nn.Linear(full_dim,50)
         self.layer_2=nn.Linear(50,20)
         self.last_layer=nn.Linear(20,1)
@@ -47,8 +67,18 @@ class tensor_fact(nn.Module):
         #pred=((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u))*(self.meas_lat.weight)*(self.time_lat.weight+torch.mm(cov_w,self.beta_w))).sum(1)
         return(pred)
     def forward_DL(self,idx_pat,idx_meas,idx_t,cov_u,cov_w):
-        merged_input=torch.cat(self.pat_lat(idx_pat),cov_u)
-        print(merged_input)
+        #print("Type of patlat "+str(self.pat_lat(idx_pat).type()))
+        #print("Type of patlat "+str(self.meas_lat(idx_meas).type()))
+        #print("Type of patlat "+str(self.time_lat(idx_t).type()))
+        #print("Type of patlat "+str(cov_u.type()))
+        #print("Type of patlat "+str(cov_w.type()))
+        #merged_input=torch.cat((self.pat_lat(idx_pat),self.meas_lat(idx_meas),self.time_lat(idx_t),cov_u,cov_w),1)
+        merged_input=torch.cat((self.pat_lat(idx_pat),self.meas_lat(idx_meas),self.time_lat(idx_t),cov_u,cov_w),1)
+        #print(merged_input.size())
+        out=F.relu(self.layer_1(merged_input))
+        out=F.relu(self.layer_2(out))
+        out=self.last_layer(out).squeeze(1)
+        return(out)
     def compute_regul(self):
         regul=torch.trace(torch.exp(-torch.mm(torch.mm(torch.t(self.time_lat.weight),self.inv_Kernel),self.time_lat.weight)))
         return(regul)
@@ -75,7 +105,27 @@ class TensorFactDataset(Dataset):
 def main():
     #With Adam optimizer
 
+
+    opt=parser.parse_args()
     import time
+
+    #Gpu selection
+    gpu_id="1"
+    if opt.gpu_name=="Tesla":
+        gpu_id="0"
+
+    os.environ["CUDA_VISIBLE_DEVICES"]=gpu_id
+    
+    if opt.cuda:
+        device=torch.device("cuda:0")
+    else:
+        device=torch.device("cpu")
+    print("Device : "+str(device))
+    
+    print("GPU num used : "+str(torch.cuda.current_device()))
+    print("GPU used : "+str(torch.cuda.get_device_name(torch.cuda.current_device())))
+
+
 
     train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train.csv")
     val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val.csv")
@@ -87,13 +137,20 @@ def main():
 
     mod=tensor_fact(n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=8,n_u=18,n_w=1)
     mod.double()
+    mod.to(device)
 
-    optimizer=torch.optim.Adam(mod.parameters(), lr=0.02) #previously lr 0.03 with good rmse
+    if opt.DL:
+        fwd_fun=mod.forward_DL
+    else:
+        fwd_fun=mod.forward
+
+    optimizer=torch.optim.Adam(mod.parameters(), opt.lr) #previously lr 0.03 with good rmse
     criterion = nn.MSELoss()#
-    epochs_num=250
+    epochs_num=opt.epochs
 
     for epoch in range(epochs_num):
         print("EPOCH : "+str(epoch))
+        
         total_loss=0
         t_tot=0
         Epoch_time=time.time()
@@ -102,13 +159,14 @@ def main():
             #print(i_batch)
             starttime=time.time()
 
-            indexes=sampled_batch[:,1:4].to(torch.long)
-            cov_u=sampled_batch[:,4:22]
-            cov_w=sampled_batch[:,3].unsqueeze(1)
-            target=sampled_batch[:,-1]
+            indexes=sampled_batch[:,1:4].to(torch.long).to(device)
+            #print("Type of index : "+str(indexes.dtype))
+            cov_u=sampled_batch[:,4:22].to(device)
+            cov_w=sampled_batch[:,3].unsqueeze(1).to(device)
+            target=sampled_batch[:,-1].to(device)
 
             optimizer.zero_grad()
-            preds=mod.forward(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
+            preds=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
             #print(mod.compute_regul())
             loss=criterion(preds,target)#-mod.compute_regul()
             loss.backward()
@@ -125,11 +183,11 @@ def main():
 
         with torch.no_grad():
             for i_val,batch_val in enumerate(dataloader_val):
-                indexes=batch_val[:,1:4].to(torch.long)
-                cov_u=batch_val[:,4:22]
-                cov_w=batch_val[:,3].unsqueeze(1)
-                target=batch_val[:,-1]
-                pred_val=mod.forward(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
+                indexes=batch_val[:,1:4].to(torch.long).to(device)
+                cov_u=batch_val[:,4:22].to(device)
+                cov_w=batch_val[:,3].unsqueeze(1).to(device)
+                target=batch_val[:,-1].to(device)
+                pred_val=mod.forward_DL(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
                 loss_val=criterion(pred_val,target)
                 print("Validation Loss :"+str(loss_val))
                 val_hist=np.append(val_hist,loss_val)
