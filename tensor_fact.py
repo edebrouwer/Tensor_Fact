@@ -104,8 +104,6 @@ class TensorFactDataset(Dataset):
 
 def main():
     #With Adam optimizer
-
-
     opt=parser.parse_args()
     import time
 
