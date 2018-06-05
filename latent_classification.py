@@ -16,7 +16,7 @@ from multiprocessing import Process, Pool
 
 from sklearn import datasets
 
-#file_path="./trained_models/8_dim_250_lr02/"
+file_path="./trained_models/mockSVM/"
 #latent_pat=torch.load(file_path+"current_model.pt")["pat_lat.weight"].numpy() #latents without covariates
     #covariates=pd.read_csv("~/Data/MIMIC/lab_covariates_val.csv").as_matrix() #covariates
     #beta_u=torch.load(file_path+"current_model.pt")["beta_u"].numpy() #Coeffs for covariates
@@ -28,10 +28,11 @@ from sklearn import datasets
 
 #testdata
 iris=datasets.load_iris()
-X=iris.data[:,:2]
-y=iris.target
-latent_pat=X[np.where(y<2)]
-tag_mat=y[np.where(y<2)]
+X=iris.data
+y=iris.target%2
+latent_pat=X
+tag_mat=y
+
 
 print("Data is Loaded")
 
@@ -51,11 +52,11 @@ def init():
     print("initialization complete")
 
 def compute_AUC(c):
-        cv=StratifiedKFold(n_splits=2)
+        cv=StratifiedKFold(n_splits=15)
         #print("Baseline : "+str(1-np.sum(tag_mat)/tag_mat.shape[0]))
 
         global clf
-        clf=svm.SVC(C=c,class_weight="balanced",probability=True)
+        clf=svm.SVC(C=c,class_weight="balanced",probability=True,kernel="linear")
 
 
         mean_fpr=np.linspace(0,1,100)
@@ -69,38 +70,39 @@ def compute_AUC(c):
 
         tprs=[interp(mean_fpr,fpr,tpr) for fpr,tpr,roc_auc in results]
         roc_aucs=[auc(fpr,tpr) for fpr,tpr,roc_auc in results]
-        
-        #for fpr,tpr,roc_auc in results:
-        #    plt.plot(fpr,tpr,lw=1,alpha=0.3)
+
+        plt.figure()
+        for fpr,tpr,roc_auc in results:
+            plt.plot(fpr,tpr,lw=1,alpha=0.3)
         #plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
-           # tprs.append(interp(mean_fpr, fpr, tpr))
-           # tprs[-1][0] = 0.0
-           # roc_auc = auc(fpr, tpr)
-           # aucs.append(roc_auc)
-           # plt.plot(fpr, tpr, lw=1, alpha=0.3,label='ROC fold %d (AUC = %0.2f)' % (i, roc_auc))
-           # i+=1
-        #plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
+            #tprs.append(interp(mean_fpr, fpr, tpr))
+            #tprs[-1][0] = 0.0
+            #roc_auc = auc(fpr, tpr)
+            #aucs.append(roc_auc)
+            #plt.plot(fpr, tpr, lw=1, alpha=0.3,label='ROC fold %d (AUC = %0.2f)' % (i, roc_auc))
+            #i+=1
+        plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
 
         mean_tpr = np.mean(tprs, axis=0)
         mean_tpr[-1] = 1.0
         mean_auc = auc(mean_fpr, mean_tpr)
         std_auc = np.std(roc_aucs)
-        #plt.plot(mean_fpr, mean_tpr, color='b',label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),lw=2, alpha=.8)
+        plt.plot(mean_fpr, mean_tpr, color='b',label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),lw=2, alpha=.8)
 
         std_tpr = np.std(tprs, axis=0)
-        #tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
-        #tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
-        #plt.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,label=r'$\pm$ 1 std. dev.')
+        tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
+        tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
+        plt.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,label=r'$\pm$ 1 std. dev.')
 
-        #plt.xlim([-0.05, 1.05])
-        #plt.ylim([-0.05, 1.05])
-        #plt.xlabel('False Positive Rate')
-        #plt.ylabel('True Positive Rate')
-        #plt.title('Receiver operating characteristic example')
-        #plt.legend(loc="lower right")
-        #print("Saving Figure for C = "+str(c))
-        #plt.savefig(file_path+"AUC_SVM_C"+str(c).replace(".","_")+".pdf")
-        #print("Done with thread C = "+str(c))
+        plt.xlim([-0.05, 1.05])
+        plt.ylim([-0.05, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver operating characteristic example')
+        plt.legend(loc="lower right")
+        print("Saving Figure for C = "+str(c))
+        plt.savefig(file_path+"AUC_SVM_C"+str(c).replace(".","_")+".pdf")
+        print("Done with thread C = "+str(c))
         return([mean_fpr,mean_tpr,std_tpr,c,mean_auc,std_auc])
 
 class NoDaemonProcess(Process):
@@ -114,36 +116,39 @@ class MyPool(PoolParent):
     Process=NoDaemonProcess
 
 
-C_vec=[0.0001,0.001,0.01,1,10,100,1000]
-main_pool=MyPool(processes=3)
+#C_vec=[0.0001,0.001,0.01]#,1,10,100,1000]
+C_vec=[1,100,1000]
+main_pool=MyPool(processes=1)
 #main_pool.map(compute_AUC,C_vec)
 res=[main_pool.apply_async(compute_AUC,(c,)) for c in C_vec]
 result_fin=[r.get() for r in res]
 print("Processing Finished, go to plots")
-for res_vec in result_fin:
-    plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
-    mean_fpr=res_vec[0]
-    mean_tpr=res_vec[1]
-    std_tpr=res_vec[2]
-    c=res_vec[3]
-    mean_auc=res_vec[4]
-    std_auc=res_vec[5]
-
-    plt.plot(mean_fpr, mean_tpr, color='b',label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),lw=2, alpha=.8)
-
-    tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
-    tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
-    plt.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,label=r'$\pm$ 1 std. dev.')
-
-    plt.xlim([-0.05, 1.05])
-    plt.ylim([-0.05, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver operating characteristic example')
-    plt.legend(loc="lower right")
-    print("Saving Figure for C = "+str(c))
-    plt.savefig(file_path+"AUC_SVM_C"+str(c).replace(".","_")+".pdf")
-    print("Done with thread C = "+str(c))
+# for res_vec in result_fin:
+#     plt.figure()
+#     plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
+#     mean_fpr=res_vec[0]
+#     mean_tpr=res_vec[1]
+#     std_tpr=res_vec[2]
+#     c=res_vec[3]
+#     mean_auc=res_vec[4]
+#     std_auc=res_vec[5]
+#     print(mean_fpr.shape)
+#
+#     plt.plot(mean_fpr, mean_tpr, color='b',label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),lw=2, alpha=.8)
+#
+#     tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
+#     tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
+#     plt.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,label=r'$\pm$ 1 std. dev.')
+#
+#     plt.xlim([-0.05, 1.05])
+#     plt.ylim([-0.05, 1.05])
+#     plt.xlabel('False Positive Rate')
+#     plt.ylabel('True Positive Rate')
+#     plt.title('Receiver operating characteristic example')
+#     plt.legend(loc="lower right")
+#     print("Saving Figure for C = "+str(c))
+#     plt.savefig(file_path+"AUC_SVM_C"+str(c).replace(".","_")+".pdf")
+#     print("Done with thread C = "+str(c))
 
     #scores=cross_val_score(clf,latent_pat,tag_mat,cv=10)
     #print("C values : "+str(c))
