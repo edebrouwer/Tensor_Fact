@@ -14,14 +14,24 @@ import multiprocessing as mp
 from multiprocessing.pool import Pool as PoolParent
 from multiprocessing import Process, Pool
 
-file_path="./trained_models/8_dim_250_lr02/"
-latent_pat=torch.load(file_path+"current_model.pt")["pat_lat.weight"].numpy() #latents without covariates
-#covariates=pd.read_csv("~/Data/MIMIC/lab_covariates_val.csv").as_matrix() #covariates
-#beta_u=torch.load(file_path+"current_model.pt")["beta_u"].numpy() #Coeffs for covariates
-#latent_pat=np.dot(covariates[:,1:],beta_u)
+from sklearn import datasets
 
-tags=pd.read_csv("~/Data/MIMIC/death_tag_tensor.csv").sort_values("UNIQUE_ID")
-tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
+#file_path="./trained_models/8_dim_250_lr02/"
+#latent_pat=torch.load(file_path+"current_model.pt")["pat_lat.weight"].numpy() #latents without covariates
+    #covariates=pd.read_csv("~/Data/MIMIC/lab_covariates_val.csv").as_matrix() #covariates
+    #beta_u=torch.load(file_path+"current_model.pt")["beta_u"].numpy() #Coeffs for covariates
+    #latent_pat=np.dot(covariates[:,1:],beta_u)
+
+#tags=pd.read_csv("~/Data/MIMIC/death_tag_tensor.csv").sort_values("UNIQUE_ID")
+#tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
+
+
+#testdata
+iris=datasets.load_iris()
+X=iris.data[:,:2]
+y=iris.target
+latent_pat=X[np.where(y<2)]
+tag_mat=y[np.where(y<2)]
 
 print("Data is Loaded")
 
