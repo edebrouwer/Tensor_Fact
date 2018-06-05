@@ -51,7 +51,7 @@ def init():
     print("initialization complete")
 
 def compute_AUC(c):
-        cv=StratifiedKFold(n_splits=10)
+        cv=StratifiedKFold(n_splits=2)
         #print("Baseline : "+str(1-np.sum(tag_mat)/tag_mat.shape[0]))
 
         global clf
@@ -69,9 +69,10 @@ def compute_AUC(c):
 
         tprs=[interp(mean_fpr,fpr,tpr) for fpr,tpr,roc_auc in results]
         roc_aucs=[auc(fpr,tpr) for fpr,tpr,roc_auc in results]
-        for fpr,tpr,roc_auc in results:
-            plt.plot(fpr,tpr,lw=1,alpha=0.3)
-        plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
+        
+        #for fpr,tpr,roc_auc in results:
+        #    plt.plot(fpr,tpr,lw=1,alpha=0.3)
+        #plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
            # tprs.append(interp(mean_fpr, fpr, tpr))
            # tprs[-1][0] = 0.0
            # roc_auc = auc(fpr, tpr)
@@ -84,23 +85,23 @@ def compute_AUC(c):
         mean_tpr[-1] = 1.0
         mean_auc = auc(mean_fpr, mean_tpr)
         std_auc = np.std(roc_aucs)
-        plt.plot(mean_fpr, mean_tpr, color='b',label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),lw=2, alpha=.8)
+        #plt.plot(mean_fpr, mean_tpr, color='b',label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),lw=2, alpha=.8)
 
         std_tpr = np.std(tprs, axis=0)
-        tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
-        tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
-        plt.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,label=r'$\pm$ 1 std. dev.')
+        #tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
+        #tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
+        #plt.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,label=r'$\pm$ 1 std. dev.')
 
-        plt.xlim([-0.05, 1.05])
-        plt.ylim([-0.05, 1.05])
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title('Receiver operating characteristic example')
-        plt.legend(loc="lower right")
-        print("Saving Figure for C = "+str(c))
-        plt.savefig(file_path+"AUC_SVM_C"+str(c).replace(".","_")+".pdf")
-        print("Done with thread C = "+str(c))
-        return(0)
+        #plt.xlim([-0.05, 1.05])
+        #plt.ylim([-0.05, 1.05])
+        #plt.xlabel('False Positive Rate')
+        #plt.ylabel('True Positive Rate')
+        #plt.title('Receiver operating characteristic example')
+        #plt.legend(loc="lower right")
+        #print("Saving Figure for C = "+str(c))
+        #plt.savefig(file_path+"AUC_SVM_C"+str(c).replace(".","_")+".pdf")
+        #print("Done with thread C = "+str(c))
+        return([mean_fpr,mean_tpr,std_tpr,c,mean_auc,std_auc])
 
 class NoDaemonProcess(Process):
     def _get_daemon(self):
@@ -118,6 +119,32 @@ main_pool=MyPool(processes=3)
 #main_pool.map(compute_AUC,C_vec)
 res=[main_pool.apply_async(compute_AUC,(c,)) for c in C_vec]
 result_fin=[r.get() for r in res]
+print("Processing Finished, go to plots")
+for res_vec in result_fin:
+    plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
+    mean_fpr=res_vec[0]
+    mean_tpr=res_vec[1]
+    std_tpr=res_vec[2]
+    c=res_vec[3]
+    mean_auc=res_vec[4]
+    std_auc=res_vec[5]
+
+    plt.plot(mean_fpr, mean_tpr, color='b',label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),lw=2, alpha=.8)
+
+    tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
+    tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
+    plt.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,label=r'$\pm$ 1 std. dev.')
+
+    plt.xlim([-0.05, 1.05])
+    plt.ylim([-0.05, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver operating characteristic example')
+    plt.legend(loc="lower right")
+    print("Saving Figure for C = "+str(c))
+    plt.savefig(file_path+"AUC_SVM_C"+str(c).replace(".","_")+".pdf")
+    print("Done with thread C = "+str(c))
+
     #scores=cross_val_score(clf,latent_pat,tag_mat,cv=10)
     #print("C values : "+str(c))
     #print("Accuracy: %0.2f (+/- %0.2f)" % (scores.mean(), scores.std() * 2))
