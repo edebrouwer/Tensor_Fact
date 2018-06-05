@@ -75,12 +75,14 @@ def compute_AUC(c):
         for fpr,tpr,roc_auc in results:
             plt.plot(fpr,tpr,lw=1,alpha=0.3)
         #plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
+
             #tprs.append(interp(mean_fpr, fpr, tpr))
             #tprs[-1][0] = 0.0
             #roc_auc = auc(fpr, tpr)
             #aucs.append(roc_auc)
             #plt.plot(fpr, tpr, lw=1, alpha=0.3,label='ROC fold %d (AUC = %0.2f)' % (i, roc_auc))
             #i+=1
+
         plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
 
         mean_tpr = np.mean(tprs, axis=0)
