@@ -17,8 +17,10 @@ import os
 parser=argparse.ArgumentParser(description="Longitudinal Tensor Factorization")
 
 #Model parameters
-parser.add_argument('--lr',default=0.02,help="Learning rate of the optimizer")
-parser.add_argument('--epochs',default=250,help="Number of epochs")
+parser.add_argument('--L2',default=0,type=float,help="L2 penalty (weight decay")
+parser.add_argument('--lr',default=0.02,type=float,help="Learning rate of the optimizer")
+parser.add_argument('--epochs',default=250,type=int,help="Number of epochs")
+parser.add_argument('--latents',default=8,type=int,help="Number of latent dimensions")
 #Model selection
 parser.add_argument('--DL',action='store_true',help="To switch to Deep Learning model")
 #GPU args
@@ -49,7 +51,8 @@ class tensor_fact(nn.Module):
         full_dim=3*l_dim+n_u+n_w
         #print(full_dim)
         self.layer_1=nn.Linear(full_dim,50)
-        self.layer_2=nn.Linear(50,20)
+        self.layer_2=nn.Linear(50,50)
+        self.layer_3=nn.Linear(50,20)
         self.last_layer=nn.Linear(20,1)
 
         #Kernel_computation
@@ -77,6 +80,7 @@ class tensor_fact(nn.Module):
         #print(merged_input.size())
         out=F.relu(self.layer_1(merged_input))
         out=F.relu(self.layer_2(out))
+        out=F.relu(self.layer_3(out))
         out=self.last_layer(out).squeeze(1)
         return(out)
     def compute_regul(self):
@@ -105,6 +109,11 @@ class TensorFactDataset(Dataset):
 def main():
     #With Adam optimizer
     opt=parser.parse_args()
+
+    #Check if output directory exits, otherwise, create it.
+    if (not os.path.exists(opt.outfile)):
+        os.makedirs(opt.outfile)
+
     import time
 
     #Gpu selection
@@ -125,15 +134,15 @@ def main():
 
 
 
-    train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train.csv")
-    val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val.csv")
+    train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train_HARD.csv")
+    val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val_HARD.csv")
     dataloader = DataLoader(train_dataset, batch_size=65000,shuffle=True,num_workers=30)
     dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
 
     train_hist=np.array([])
     val_hist=np.array([])
 
-    mod=tensor_fact(n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=8,n_u=18,n_w=1)
+    mod=tensor_fact(n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=opt.latents,n_u=18,n_w=1)
     mod.double()
     mod.to(device)
 
@@ -142,7 +151,7 @@ def main():
     else:
         fwd_fun=mod.forward
 
-    optimizer=torch.optim.Adam(mod.parameters(), opt.lr) #previously lr 0.03 with good rmse
+    optimizer=torch.optim.Adam(mod.parameters(), lr=opt.lr,weight_decay=opt.L2) #previously lr 0.03 with good rmse
     criterion = nn.MSELoss()#
     epochs_num=opt.epochs
 
