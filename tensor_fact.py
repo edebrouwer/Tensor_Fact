@@ -226,8 +226,11 @@ def main():
                     indexes=batch_val[0].to(torch.long).to(device)
                     cov_u=batch_val[2].to(device)
                     target=batch_val[1].to(device)
+                    mask=target.ne(0)
+                    target=torch.masked_select(target,mask)
                     optimizer.zero_grad()
                     pred_val=fwd_fun(indexes,cov_u)
+                    pred_val=torch.masked_select(pred_val,mask)
                 else:
                     indexes=batch_val[:,1:4].to(torch.long).to(device)
                     cov_u=batch_val[:,4:22].to(device)
