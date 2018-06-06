@@ -17,21 +17,21 @@ from multiprocessing import Process, Pool
 from sklearn import datasets
 
 file_path="./trained_models/Deep_8_dim_250_lr02_HARD/"
-#latent_pat=torch.load(file_path+"current_model.pt")["pat_lat.weight"].cpu().numpy() #latents without covariates
+latent_pat=torch.load(file_path+"current_model.pt")["pat_lat.weight"].cpu().numpy() #latents without covariates
     #covariates=pd.read_csv("~/Data/MIMIC/lab_covariates_val.csv").as_matrix() #covariates
     #beta_u=torch.load(file_path+"current_model.pt")["beta_u"].numpy() #Coeffs for covariates
     #latent_pat=np.dot(covariates[:,1:],beta_u)
 
-#tags=pd.read_csv("~/Data/MIMIC/death_tag_tensor.csv").sort_values("UNIQUE_ID")
-#tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
+tags=pd.read_csv("~/Data/MIMIC/death_tag_tensor.csv").sort_values("UNIQUE_ID")
+tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 
 
 #testdata
-iris=datasets.load_iris()
-X=iris.data
-y=iris.target%2
-latent_pat=X
-tag_mat=y
+#iris=datasets.load_iris()
+#X=iris.data
+#y=iris.target%2
+#latent_pat=X
+#tag_mat=y
 
 
 print("Data is Loaded")
