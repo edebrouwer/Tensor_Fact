@@ -111,14 +111,16 @@ class TensorFactDataset_ByPat(Dataset):
         val_tens=torch.DoubleTensor(idx_mat[:,-1])
         sparse_data=torch.sparse.DoubleTensor(idx_tens.t(),val_tens)
         self.data_matrix=sparse_data.to_dense()
-        self.length=self.data_matrix.size(0)
         cov_values=[chr(i) for i in range(ord('A'),ord('A')+18)]
-        cov_u=lab_short.groupby("UNIQUE_ID").first()[cov_values]
-        self.cov_u_mat=torch.DoubleTensor(covariates.as_matrix())
+        covariates=self.lab_short.groupby("UNIQUE_ID").first()[cov_values]
+        self.cov_u=torch.DoubleTensor(covariates.as_matrix())
+        self.length=self.cov_u.size(0)
+       # print(self.cov_u.size())
+       # print(self.data_matrix.size())
     def __len__(self):
         return self.length
     def __getitem__(self,idx):
-        return([idx,self.data_matrix[idx,:,:],self.cov_u_mat[idx,:]])
+        return([idx,self.data_matrix[idx,:,:],self.cov_u[idx,:]])
 
 def main():
     #With Adam optimizer
