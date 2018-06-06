@@ -16,22 +16,22 @@ from multiprocessing import Process, Pool
 
 from sklearn import datasets
 
-file_path="./trained_models/mockSVM/"
-#latent_pat=torch.load(file_path+"current_model.pt")["pat_lat.weight"].numpy() #latents without covariates
+file_path="./trained_models/Deep_8_dim_250_lr02_HARD/"
+latent_pat=torch.load(file_path+"current_model.pt")["pat_lat.weight"].cpu().numpy() #latents without covariates
     #covariates=pd.read_csv("~/Data/MIMIC/lab_covariates_val.csv").as_matrix() #covariates
     #beta_u=torch.load(file_path+"current_model.pt")["beta_u"].numpy() #Coeffs for covariates
     #latent_pat=np.dot(covariates[:,1:],beta_u)
 
-#tags=pd.read_csv("~/Data/MIMIC/death_tag_tensor.csv").sort_values("UNIQUE_ID")
-#tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
+tags=pd.read_csv("~/Data/MIMIC/death_tag_tensor.csv").sort_values("UNIQUE_ID")
+tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 
 
 #testdata
-iris=datasets.load_iris()
-X=iris.data
-y=iris.target%2
-latent_pat=X
-tag_mat=y
+#iris=datasets.load_iris()
+#X=iris.data
+#y=iris.target%2
+#latent_pat=X
+#tag_mat=y
 
 
 print("Data is Loaded")
@@ -105,7 +105,8 @@ def compute_AUC(c):
         print("Saving Figure for C = "+str(c))
         plt.savefig(file_path+"AUC_SVM_C"+str(c).replace(".","_")+".pdf")
         print("Done with thread C = "+str(c))
-        return([mean_fpr,mean_tpr,std_tpr,c,mean_auc,std_auc])
+        return(0)
+    #return([mean_fpr,mean_tpr,std_tpr,c,mean_auc,std_auc])
 
 class NoDaemonProcess(Process):
     def _get_daemon(self):
@@ -118,9 +119,9 @@ class MyPool(PoolParent):
     Process=NoDaemonProcess
 
 
-#C_vec=[0.0001,0.001,0.01]#,1,10,100,1000]
-C_vec=[1,100,1000]
-main_pool=MyPool(processes=1)
+C_vec=[0.0001,0.001,0.01,1,10,100,1000]
+#C_vec=[1,100,1000]
+main_pool=MyPool(processes=3)
 #main_pool.map(compute_AUC,C_vec)
 res=[main_pool.apply_async(compute_AUC,(c,)) for c in C_vec]
 result_fin=[r.get() for r in res]
