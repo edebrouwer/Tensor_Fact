@@ -52,7 +52,7 @@ def init():
     print("initialization complete")
 
 def compute_AUC(c):
-        cv=StratifiedKFold(n_splits=15)
+        cv=StratifiedKFold(n_splits=5)
         #print("Baseline : "+str(1-np.sum(tag_mat)/tag_mat.shape[0]))
 
         global clf
