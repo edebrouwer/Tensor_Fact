@@ -192,8 +192,11 @@ def main():
                 indexes=sampled_batch[0].to(torch.long).to(device)
                 cov_u=sampled_batch[2].to(device)
                 target=sampled_batch[1].to(device)
+                mask=target.ne(0)
+                target=masked_select(target,mask)
                 optimizer.zero_grad()
                 preds=fwd_fun(indexes,cov_u)
+                preds=masked_select(preds,mask)
             else:
                 indexes=sampled_batch[:,1:4].to(torch.long).to(device)
                 #print("Type of index : "+str(indexes.dtype))
@@ -219,11 +222,18 @@ def main():
 
         with torch.no_grad():
             for i_val,batch_val in enumerate(dataloader_val):
-                indexes=batch_val[:,1:4].to(torch.long).to(device)
-                cov_u=batch_val[:,4:22].to(device)
-                cov_w=batch_val[:,3].unsqueeze(1).to(device)
-                target=batch_val[:,-1].to(device)
-                pred_val=mod.forward_DL(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
+                if opt.by_pat:
+                    indexes=batch_val[0].to(torch.long).to(device)
+                    cov_u=batch_val[2].to(device)
+                    target=batch_val[1].to(device)
+                    optimizer.zero_grad()
+                    preds=fwd_fun(indexes,cov_u)
+                else:
+                    indexes=batch_val[:,1:4].to(torch.long).to(device)
+                    cov_u=batch_val[:,4:22].to(device)
+                    cov_w=batch_val[:,3].unsqueeze(1).to(device)
+                    target=batch_val[:,-1].to(device)
+                    pred_val=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
                 loss_val=criterion(pred_val,target)
                 print("Validation Loss :"+str(loss_val))
                 val_hist=np.append(val_hist,loss_val)
