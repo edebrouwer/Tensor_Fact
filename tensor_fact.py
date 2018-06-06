@@ -12,8 +12,6 @@ import os
 #Check Ethan Rosenthal github
 
 
-
-
 parser=argparse.ArgumentParser(description="Longitudinal Tensor Factorization")
 
 #Model parameters
@@ -21,8 +19,11 @@ parser.add_argument('--L2',default=0,type=float,help="L2 penalty (weight decay")
 parser.add_argument('--lr',default=0.02,type=float,help="Learning rate of the optimizer")
 parser.add_argument('--epochs',default=250,type=int,help="Number of epochs")
 parser.add_argument('--latents',default=8,type=int,help="Number of latent dimensions")
+parser.add_argument('--batch',default=65000,type=int,help="Number of samples per batch")
+
 #Model selection
 parser.add_argument('--DL',action='store_true',help="To switch to Deep Learning model")
+parser.add_argument('--by_pat',action='store_true',help="To switch to by patient learning")
 #GPU args
 parser.add_argument('--cuda',action='store_true')
 parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu to use for computation")
@@ -97,14 +98,27 @@ class TensorFactDataset(Dataset):
         self.cov_values=[chr(i) for i in range(ord('A'),ord('A')+18)]
         self.time_values=["TIME_STAMP","TIME_SQ"]
         self.tensor_mat=self.lab_short.as_matrix()
-        #print(self.lab_short.dtypes)
     def __len__(self):
         return self.length
     def __getitem__(self,idx):
-        #print(self.lab_short["VALUENUM"].iloc[idx].values)
-        #return([torch.from_numpy(self.lab_short.iloc[idx][["UNIQUE_ID","LABEL_CODE","TIME_STAMP"]].astype('int64').as_matrix()),torch.from_numpy(self.lab_short.iloc[idx][self.cov_values].as_matrix()),torch.from_numpy(self.lab_short.iloc[idx][self.time_values].astype('float64').as_matrix()),torch.tensor(self.lab_short["VALUENUM"].iloc[idx],dtype=torch.double)])
-        #return(self.lab_short.iloc[idx].as_matrix())
         return(self.tensor_mat[idx,:])
+
+class TensorFactDataset_ByPat(Dataset):
+    def __init__(self,csv_file_serie="lab_short_tensor.csv",file_path="~/Data/MIMIC/",transform=None):
+        self.lab_short=pd.read_csv(file_path+csv_file_serie)
+        idx_mat=self.lab_short[["UNIQUE_ID","LABEL_CODE","TIME_STAMP","VALUENORM"]].as_matrix()
+        idx_tens=torch.LongTensor(idx_mat[:,:-1])
+        val_tens=torch.DoubleTensor(idx_mat[:,-1])
+        sparse_data=torch.sparse.DoubleTensor(idx_tens.t(),val_tens)
+        self.data_matrix=sparse_data.to_dense()
+        self.length=self.data_matrix.size(0)
+        cov_values=[chr(i) for i in range(ord('A'),ord('A')+18)]
+        cov_u=lab_short.groupby("UNIQUE_ID").first()[cov_values]
+        self.cov_u_mat=torch.DoubleTensor(covariates.as_matrix())
+    def __len__(self):
+        return self.length
+    def __getitem__(self,idx):
+        return([idx,self.data_matrix[idx,:,:],self.cov_u_mat[idx,:]])
 
 def main():
     #With Adam optimizer
@@ -136,8 +150,6 @@ def main():
 
     train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train_HARD.csv")
     val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val_HARD.csv")
-    dataloader = DataLoader(train_dataset, batch_size=65000,shuffle=True,num_workers=30)
-    dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
 
     train_hist=np.array([])
     val_hist=np.array([])
@@ -149,7 +161,15 @@ def main():
     if opt.DL:
         fwd_fun=mod.forward_DL
     else:
-        fwd_fun=mod.forward
+        if opt.by_pat:
+            fwd_fun=mod.forward_full
+            train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train_HARD.csv")
+            val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val_HARD.csv")
+        else:
+            fwd_fun=mod.forward
+
+    dataloader = DataLoader(train_dataset, batch_size=opt.batch,shuffle=True,num_workers=30)
+    dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
 
     optimizer=torch.optim.Adam(mod.parameters(), lr=opt.lr,weight_decay=opt.L2) #previously lr 0.03 with good rmse
     criterion = nn.MSELoss()#
@@ -164,17 +184,23 @@ def main():
         Epoch_time=time.time()
         for i_batch,sampled_batch in enumerate(dataloader):
 
-            #print(i_batch)
             starttime=time.time()
 
-            indexes=sampled_batch[:,1:4].to(torch.long).to(device)
-            #print("Type of index : "+str(indexes.dtype))
-            cov_u=sampled_batch[:,4:22].to(device)
-            cov_w=sampled_batch[:,3].unsqueeze(1).to(device)
-            target=sampled_batch[:,-1].to(device)
+            if opt.by_pat:
+                indexes=sampled_batch[0].to(torch.long).to(device)
+                cov_u=sampled_batch[2].to(torch.long).to(device)
+                target=sampled_batch[1].to(torch.long).to(device)
+                optimizer.zero_grad()
+                preds=fwd_fun(indexes,cov_u)
+            else:
+                indexes=sampled_batch[:,1:4].to(torch.long).to(device)
+                #print("Type of index : "+str(indexes.dtype))
+                cov_u=sampled_batch[:,4:22].to(device)
+                cov_w=sampled_batch[:,3].unsqueeze(1).to(device)
+                target=sampled_batch[:,-1].to(device)
 
-            optimizer.zero_grad()
-            preds=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
+                optimizer.zero_grad()
+                preds=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
             #print(mod.compute_regul())
             loss=criterion(preds,target)#-mod.compute_regul()
             loss.backward()
