@@ -188,8 +188,8 @@ def main():
 
             if opt.by_pat:
                 indexes=sampled_batch[0].to(torch.long).to(device)
-                cov_u=sampled_batch[2].to(torch.long).to(device)
-                target=sampled_batch[1].to(torch.long).to(device)
+                cov_u=sampled_batch[2].to(device)
+                target=sampled_batch[1].to(device)
                 optimizer.zero_grad()
                 preds=fwd_fun(indexes,cov_u)
             else:
