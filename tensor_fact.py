@@ -150,8 +150,8 @@ def main():
 
 
 
-    train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train_HARD.csv")
-    val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val_HARD.csv")
+    train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train.csv")
+    val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val.csv")
 
     train_hist=np.array([])
     val_hist=np.array([])
@@ -165,8 +165,8 @@ def main():
     else:
         if opt.by_pat:
             fwd_fun=mod.forward_full
-            train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train_HARD.csv")
-            val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val_HARD.csv")
+            train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train.csv")
+            val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val.csv")
         else:
             fwd_fun=mod.forward
 
