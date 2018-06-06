@@ -193,10 +193,10 @@ def main():
                 cov_u=sampled_batch[2].to(device)
                 target=sampled_batch[1].to(device)
                 mask=target.ne(0)
-                target=masked_select(target,mask)
+                target=torch.masked_select(target,mask)
                 optimizer.zero_grad()
                 preds=fwd_fun(indexes,cov_u)
-                preds=masked_select(preds,mask)
+                preds=torch.masked_select(preds,mask)
             else:
                 indexes=sampled_batch[:,1:4].to(torch.long).to(device)
                 #print("Type of index : "+str(indexes.dtype))
@@ -227,7 +227,7 @@ def main():
                     cov_u=batch_val[2].to(device)
                     target=batch_val[1].to(device)
                     optimizer.zero_grad()
-                    preds=fwd_fun(indexes,cov_u)
+                    pred_val=fwd_fun(indexes,cov_u)
                 else:
                     indexes=batch_val[:,1:4].to(torch.long).to(device)
                     cov_u=batch_val[:,4:22].to(device)
