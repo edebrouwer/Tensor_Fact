@@ -170,7 +170,7 @@ def main():
         else:
             fwd_fun=mod.forward
 
-    dataloader = DataLoader(train_dataset, batch_size=opt.batch,shuffle=True,num_workers=30)
+    dataloader = DataLoader(train_dataset, batch_size=opt.batch,shuffle=True,num_workers=0)
     dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
 
     optimizer=torch.optim.Adam(mod.parameters(), lr=opt.lr,weight_decay=opt.L2) #previously lr 0.03 with good rmse
