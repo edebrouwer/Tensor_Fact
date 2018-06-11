@@ -150,8 +150,8 @@ def main():
 
 
 
-    train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train.csv")
-    val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val.csv")
+    train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train_HARD.csv")
+    val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val_HARD.csv")
 
     train_hist=np.array([])
     val_hist=np.array([])
@@ -165,12 +165,12 @@ def main():
     else:
         if opt.by_pat:
             fwd_fun=mod.forward_full
-            train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train.csv")
-            val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val.csv")
+            train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train_HARD.csv")
+            val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val_HARD.csv")
         else:
             fwd_fun=mod.forward
 
-    dataloader = DataLoader(train_dataset, batch_size=opt.batch,shuffle=True,num_workers=0)
+    dataloader = DataLoader(train_dataset, batch_size=opt.batch,shuffle=True,num_workers=2)
     dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
 
     optimizer=torch.optim.Adam(mod.parameters(), lr=opt.lr,weight_decay=opt.L2) #previously lr 0.03 with good rmse
