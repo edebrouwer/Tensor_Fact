@@ -55,7 +55,7 @@ def compute_AUC(c):
         cv=StratifiedKFold(n_splits=5)
         #print("Baseline : "+str(1-np.sum(tag_mat)/tag_mat.shape[0]))
 
-        global clf
+        #global clf
         clf=svm.SVC(C=c,class_weight="balanced",probability=True,kernel="linear")
 
 
@@ -120,11 +120,12 @@ class MyPool(PoolParent):
 
 
 C_vec=[0.0001,0.001,0.01,1,10,100,1000]
-#C_vec=[1,100,1000]
-main_pool=MyPool(processes=3)
-#main_pool.map(compute_AUC,C_vec)
-res=[main_pool.apply_async(compute_AUC,(c,)) for c in C_vec]
-result_fin=[r.get() for r in res]
+
+#main_pool=MyPool(processes=3)
+
+#res=[main_pool.apply_async(compute_AUC,(c,)) for c in C_vec]
+#result_fin=[r.get() for r in res]
+results_=[compute_AUC(c) for c in C_vec]
 print("Processing Finished, go to plots")
 # for res_vec in result_fin:
 #     plt.figure()
