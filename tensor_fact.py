@@ -293,5 +293,9 @@ def main():
     torch.save(train_hist,str_dir+"train_history.pt")
     torch.save(val_hist,str_dir+"validation_history.pt")
 
+    min_train=train_hist[np.where(val_hist==min(val_hist))]
+    print("Training Error at lowest validation : "+str(min_train))
+    print("Lowest Validation Error : "+str(min(val_hist)))
+
 if __name__=="__main__":
     main()
