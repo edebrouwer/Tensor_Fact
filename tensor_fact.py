@@ -30,7 +30,7 @@ parser.add_argument('--hard_split',action='store_true',help="To use the challeng
 parser.add_argument('--cuda',action='store_true')
 parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu to use for computation")
 #Savings args
-parser.add_argument('--outfile',default="./",type=str,help="Path to save the models and outpus")
+#parser.add_argument('--outfile',default="./",type=str,help="Path to save the models and outpus")
 
 
 class tensor_fact(nn.Module):
@@ -140,10 +140,16 @@ class TensorFactDataset_ByPat(Dataset):
 def main():
     #With Adam optimizer
     opt=parser.parse_args()
+    str_dir="./"
+    for key in vars(opt):
+        str_dir+=str(key)+str(vars(opt)[key])+"_"
+    print(str_dir)
 
     #Check if output directory exits, otherwise, create it.
-    if (not os.path.exists(opt.outfile)):
-        os.makedirs(opt.outfile)
+    if (not os.path.exists(str_dir)):
+        os.makedirs(str_dir)
+    else:
+        raise ValueError("This configuration has already been run !")
 
     import time
 
@@ -257,7 +263,7 @@ def main():
                 print("Validation Loss :"+str(loss_val))
                 val_hist=np.append(val_hist,loss_val)
                 if loss_val<lowest_val:
-                    torch.save(mod.state_dict(),opt.outfile+"best_model.pt")
+                    torch.save(mod.state_dict(),str_dir+"best_model.pt")
                     lowest_val=loss_val
             else:
                 for i_val,batch_val in enumerate(dataloader_val):
@@ -280,12 +286,12 @@ def main():
                     print("Validation Loss :"+str(loss_val))
                     val_hist=np.append(val_hist,loss_val)
                     if loss_val<lowest_val:
-                        torch.save(mod.state_dict(),opt.outfile+"best_model.pt")
+                        torch.save(mod.state_dict(),str_dir+"best_model.pt")
                         lowest_val=loss_val
 
-    torch.save(mod.state_dict(),opt.outfile+"current_model.pt")
-    torch.save(train_hist,opt.outfile+"train_history.pt")
-    torch.save(val_hist,opt.outfile+"validation_history.pt")
+    torch.save(mod.state_dict(),str_dir+"current_model.pt")
+    torch.save(train_hist,str_dir+"train_history.pt")
+    torch.save(val_hist,str_dir+"validation_history.pt")
 
 if __name__=="__main__":
     main()
