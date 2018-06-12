@@ -114,9 +114,8 @@ class TensorFactDataset(Dataset):
         self.tensor_mat=self.lab_short.as_matrix()
 
         self.tags=pd.read_csv(file_path+"death_tag_tensor.csv")
-        self.test_labels=self.tags[self.tags["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID")].as_matrix()
-        self.test_covariates=self.lab_short[self.lab_short["UNIQUE_ID"].isin(self.test_idx),self.cov_values].sort_values(by="UNIQUE_ID").as_matrix()
-
+        self.test_labels=self.tags.loc[self.tags["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID").as_matrix()
+        self.test_covariates=self.lab_short.loc[self.lab_short["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID")[self.cov_values].as_matrix()
     def __len__(self):
         return self.length
     def __getitem__(self,idx):
@@ -149,7 +148,7 @@ class TensorFactDataset_ByPat(Dataset):
 def main():
     #With Adam optimizer
     opt=parser.parse_args()
-    str_dir="./"
+    str_dir="./trained_models/"
     for key in vars(opt):
         str_dir+=str(key)+str(vars(opt)[key])+"_"
     str_dir+="/"
@@ -158,8 +157,9 @@ def main():
     if (not os.path.exists(str_dir)):
         os.makedirs(str_dir)
     else:
-        raise ValueError("This configuration has already been run !")
-
+        replace_prev=input("This configuration has already been run !Do you want to continue ? y/n")
+        if (replace_prev=="n"):
+            raise ValueError("Aborted")
     import time
 
     #Gpu selection
@@ -187,11 +187,6 @@ def main():
     train_hist=np.array([])
     val_hist=np.array([])
 
-    mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=opt.latents,n_u=18,n_w=1)
-    mod.double()
-    mod.to(device)
-
-
     if opt.by_pat:
         if opt.DL:
             raise ValueError("Deep Learning with data feeding by patient is not supported yet")
@@ -200,19 +195,33 @@ def main():
         else:
             train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val"+suffix)
+        
+        mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=opt.latents,n_u=18,n_w=1)
+        mod.double()
+        mod.to(device)
+
         fwd_fun=mod.forward_full
     else:
         if opt.DL:
-            fwd_fun=mod.forward_DL
-        elif opt.death_label:
-            fwd_fun=mod.forward
-            train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor.csv") #Full dataset for the Training
-        else:
-            fwd_fun=mod.forward
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-
-
+            mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=opt.latents,n_u=18,n_w=1)
+            mod.double()
+            mod.to(device)
+            fwd_fun=mod.forward_DL
+        elif opt.death_label:
+            train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor.csv") #Full dataset for the Training
+            mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=opt.latents,n_u=18,n_w=1)
+            mod.double()
+            mod.to(device)
+            fwd_fun=mod.forward
+        else:
+            train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
+            val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
+            mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=opt.latents,n_u=18,n_w=1)
+            mod.double()
+            mod.to(device)
+            fwd_fun=mod.forward
 
     dataloader = DataLoader(train_dataset, batch_size=opt.batch,shuffle=True,num_workers=2)
     if not opt.death_label:
@@ -267,6 +276,8 @@ def main():
             #print(mod.compute_regul())
             loss=criterion(preds,target)#-mod.compute_regul()
             if opt.death_label:
+                print("Classification Loss")
+                print(class_criterion(lab_preds,lab_target))
                 loss+=class_criterion(lab_preds,lab_target)
             loss.backward()
             # print(mod.time_lat.weight.grad)
