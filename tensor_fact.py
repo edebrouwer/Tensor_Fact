@@ -107,7 +107,16 @@ class TensorFactDataset(Dataset):
         self.pat_num=self.lab_short["UNIQUE_ID"].nunique()
         self.cov_values=[chr(i) for i in range(ord('A'),ord('A')+18)]
         self.time_values=["TIME_STAMP","TIME_SQ"]
+
+        #Randomly select patients for classification validation.
+        self.test_idx=np.random.choice(self.pat_num,size=int(0.2*self.pat_num),replace=False) #0.2 validation rate
+        self.lab_short.loc[self.lab_short["UNIQUE_ID"].isin(self.test_idx),"DEATHTAG"]=np.nan
         self.tensor_mat=self.lab_short.as_matrix()
+
+        self.tags=pd.read_csv(file_path+"death_tag_tensor.csv")
+        self.test_labels=self.tags[self.tags["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID")].as_matrix()
+        self.test_covariates=self.lab_short[self.lab_short["UNIQUE_ID"].isin(self.test_idx),self.cov_values].sort_values(by="UNIQUE_ID").as_matrix()
+
     def __len__(self):
         return self.length
     def __getitem__(self,idx):
@@ -175,9 +184,6 @@ def main():
         suffix=".csv"
 
 
-    train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
-    val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-
     train_hist=np.array([])
     val_hist=np.array([])
 
@@ -185,20 +191,32 @@ def main():
     mod.double()
     mod.to(device)
 
-    if opt.DL:
-        fwd_fun=mod.forward_DL
-    else:
-        if opt.by_pat:
-            fwd_fun=mod.forward_full
+
+    if opt.by_pat:
+        if opt.DL:
+            raise ValueError("Deep Learning with data feeding by patient is not supported yet")
+        elif opt.death_label:
+            train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor.csv") #Full dataset for the Training
+        else:
             train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val"+suffix)
+        fwd_fun=mod.forward_full
+    else:
+        if opt.DL:
+            fwd_fun=mod.forward_DL
+        elif opt.death_label:
+            fwd_fun=mod.forward
+            train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor.csv") #Full dataset for the Training
         else:
             fwd_fun=mod.forward
+            train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
+            val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
 
 
 
     dataloader = DataLoader(train_dataset, batch_size=opt.batch,shuffle=True,num_workers=2)
-    dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
+    if not opt.death_label:
+        dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
 
     optimizer=torch.optim.Adam(mod.parameters(), lr=opt.lr,weight_decay=opt.L2) #previously lr 0.03 with good rmse
     criterion = nn.MSELoss()#
@@ -234,12 +252,18 @@ def main():
             else:
                 indexes=sampled_batch[:,1:4].to(torch.long).to(device)
                 #print("Type of index : "+str(indexes.dtype))
-                cov_u=sampled_batch[:,4:22].to(device)
+                cov_u=sampled_batch[:,5:23].to(device)
                 cov_w=sampled_batch[:,3].unsqueeze(1).to(device)
                 target=sampled_batch[:,-1].to(device)
 
                 optimizer.zero_grad()
                 preds=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
+                if opt.death_label:
+                    lab_target=sampled_batch[:,4].to(device)
+                    lab_mask=(lab_target==lab_target)
+                    lab_target=torch.masked_select(lab_target,lab_mask)
+                    lab_preds=mod.label_pred(indexes[:,0],cov_u)
+                    lab_preds=torch.masked_select(lab_preds,lab_mask)
             #print(mod.compute_regul())
             loss=criterion(preds,target)#-mod.compute_regul()
             if opt.death_label:
@@ -257,9 +281,14 @@ def main():
         train_hist=np.append(train_hist,total_loss.item()/(i_batch+1))
 
         with torch.no_grad():
-            if opt.death_label: #only classification loss to plot
-                val_preds=mod.label_pred(train_dataset.test_idx.to(device),train_dataset.test_cov_u[train_dataset.test_idx].to(device))
-                loss_val=class_criterion(val_preds,train_dataset.tags[train_dataset.test_idx].to(device))
+            if opt.death_label: #only classification loss
+                if opt.by_pat:
+                    val_preds=mod.label_pred(train_dataset.test_idx.to(device),train_dataset.test_cov_u[train_dataset.test_idx].to(device))
+                    loss_val=class_criterion(val_preds,train_dataset.tags[train_dataset.test_idx].to(device))
+                else:
+                    val_preds=mod.label_pred(train_dataset.test_labels[:,3].to(device),train_dataset.test_covariates.to(device))
+                    loss_val=class_criterion(val_preds,train_dataset.test_labels[:,1].to(device))
+
                 print("Validation Loss :"+str(loss_val))
                 val_hist=np.append(val_hist,loss_val)
                 if loss_val<lowest_val:
@@ -278,9 +307,10 @@ def main():
                         pred_val=torch.masked_select(pred_val,mask)
                     else:
                         indexes=batch_val[:,1:4].to(torch.long).to(device)
-                        cov_u=batch_val[:,4:22].to(device)
+                        cov_u=batch_val[:,5:23].to(device)
                         cov_w=batch_val[:,3].unsqueeze(1).to(device)
                         target=batch_val[:,-1].to(device)
+                        target_lab=batch_val[:,4].to(device)
                         pred_val=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
                     loss_val=criterion(pred_val,target)
                     print("Validation Loss :"+str(loss_val))
