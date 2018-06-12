@@ -61,7 +61,8 @@ class tensor_fact(nn.Module):
         self.last_layer=nn.Linear(20,1)
 
         #classification
-        self.layer_class_1=nn.Linear((l_dim+n_u),1)
+        self.layer_class_1=nn.Linear((l_dim+n_u),20)
+        self.layer_class_2=nn.Linear(20,1)
 
         #Kernel_computation
         x_samp=np.linspace(0,(n_t-1),n_t)
@@ -92,8 +93,9 @@ class tensor_fact(nn.Module):
         out=self.last_layer(out).squeeze(1)
         return(out)
     def label_pred(self,idx_pat,cov_u): #Classifiction task
-        merged_input=torch.cat((self.pat_lat(idx_pat),self.meas_lat(idx_meas)),1)
-        out=F.log_softmax(self.layer_class_1(merged_input))
+        merged_input=torch.cat((self.pat_lat(idx_pat),cov_u),1)
+        out=F.relu(self.layer_class_1(merged_input))
+        out=F.sigmoid(self.layer_class_2(out))
         return(out)
     def compute_regul(self):
         regul=torch.trace(torch.exp(-torch.mm(torch.mm(torch.t(self.time_lat.weight),self.inv_Kernel),self.time_lat.weight)))
@@ -114,8 +116,12 @@ class TensorFactDataset(Dataset):
         self.tensor_mat=self.lab_short.as_matrix()
 
         self.tags=pd.read_csv(file_path+"death_tag_tensor.csv")
-        self.test_labels=self.tags.loc[self.tags["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID").as_matrix()
-        self.test_covariates=self.lab_short.loc[self.lab_short["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID")[self.cov_values].as_matrix()
+        self.test_labels=torch.tensor(self.tags.loc[self.tags["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID").as_matrix())
+       # self.test_covariates=torch.tensor(self.lab_short.loc[self.lab_short["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID")[self.cov_values].as_matrix()).to(torch.double)
+        covariates=self.lab_short.groupby("UNIQUE_ID").first()[self.cov_values].reset_index()
+        self.test_covariates=torch.tensor(covariates.loc[covariates["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID")[self.cov_values].as_matrix()).to(torch.double)
+        print(self.test_covariates.size())
+        print(self.test_labels.size())
     def __len__(self):
         return self.length
     def __getitem__(self,idx):
@@ -229,7 +235,7 @@ def main():
 
     optimizer=torch.optim.Adam(mod.parameters(), lr=opt.lr,weight_decay=opt.L2) #previously lr 0.03 with good rmse
     criterion = nn.MSELoss()#
-    class_criterion = nn.NLLLoss(weight=torch.tensor([0.9,0.1]))
+    class_criterion = nn.BCELoss()
     epochs_num=opt.epochs
 
     lowest_val=1
@@ -268,16 +274,14 @@ def main():
                 optimizer.zero_grad()
                 preds=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
                 if opt.death_label:
-                    lab_target=sampled_batch[:,4].to(device)
+                    lab_target=sampled_batch[:,4].to(torch.double).to(device)
                     lab_mask=(lab_target==lab_target)
                     lab_target=torch.masked_select(lab_target,lab_mask)
                     lab_preds=mod.label_pred(indexes[:,0],cov_u)
-                    lab_preds=torch.masked_select(lab_preds,lab_mask)
+                    lab_preds=torch.masked_select(lab_preds,lab_mask.unsqueeze(1))
             #print(mod.compute_regul())
             loss=criterion(preds,target)#-mod.compute_regul()
-            if opt.death_label:
-                print("Classification Loss")
-                print(class_criterion(lab_preds,lab_target))
+            if opt.death_label:           
                 loss+=class_criterion(lab_preds,lab_target)
             loss.backward()
             # print(mod.time_lat.weight.grad)
@@ -297,8 +301,8 @@ def main():
                     val_preds=mod.label_pred(train_dataset.test_idx.to(device),train_dataset.test_cov_u[train_dataset.test_idx].to(device))
                     loss_val=class_criterion(val_preds,train_dataset.tags[train_dataset.test_idx].to(device))
                 else:
-                    val_preds=mod.label_pred(train_dataset.test_labels[:,3].to(device),train_dataset.test_covariates.to(device))
-                    loss_val=class_criterion(val_preds,train_dataset.test_labels[:,1].to(device))
+                    val_preds=mod.label_pred(train_dataset.test_labels[:,3].to(torch.long).to(device),train_dataset.test_covariates.to(device))
+                    loss_val=class_criterion(val_preds,train_dataset.test_labels[:,1].unsqueeze(1).to(device))
 
                 print("Validation Loss :"+str(loss_val))
                 val_hist=np.append(val_hist,loss_val)
