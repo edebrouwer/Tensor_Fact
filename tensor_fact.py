@@ -32,7 +32,7 @@ parser.add_argument('--outfile',default="./",type=str,help="Path to save the mod
 
 
 class tensor_fact(nn.Module):
-    def __init__(self,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,l_kernel=3,sig2_kernel=1):
+    def __init__(self,device,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,l_kernel=3,sig2_kernel=1):
         super(tensor_fact,self).__init__()
         self.n_pat=n_pat
         self.n_meas=n_meas
@@ -48,6 +48,8 @@ class tensor_fact(nn.Module):
         self.time_lat.weight=nn.Parameter(0.005*torch.randn([n_t,l_dim]))
         self.beta_u=nn.Parameter(torch.randn([n_u,l_dim],requires_grad=True))#.double())
         self.beta_w=nn.Parameter(torch.randn([n_w,l_dim],requires_grad=True))#.double())
+
+        self.cov_w_fixed=torch.tensor(range(0,101),device=device,dtype=torch.double,requires_grad=False).unsqueeze(1)#.double()
 
         full_dim=3*l_dim+n_u+n_w
         #print(full_dim)
@@ -66,8 +68,8 @@ class tensor_fact(nn.Module):
         pred=((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(cov_w,self.beta_w))).sum(1)
         return(pred)
     def forward_full(self,idx_pat,cov_u):
-        cov_w=torch.tensor(range(0,101)).unsqueeze(1).double()
-        pred=torch.einsum('il,jkl->ijk',((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u),torch.einsum("il,jl->ijl",(self.meas_lat.weight,(self.time_lat.weight+torch.mm(cov_w,self.beta_w)))))))
+        #cov_w=torch.tensor(range(0,101)).unsqueeze(1)#.double()
+        pred=torch.einsum('il,jkl->ijk',((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u),torch.einsum("il,jl->ijl",(self.meas_lat.weight,(self.time_lat.weight+torch.mm(self.cov_w_fixed,self.beta_w)))))))
         #pred=((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u))*(self.meas_lat.weight)*(self.time_lat.weight+torch.mm(cov_w,self.beta_w))).sum(1)
         return(pred)
     def forward_DL(self,idx_pat,idx_meas,idx_t,cov_u,cov_w):
@@ -156,7 +158,7 @@ def main():
     train_hist=np.array([])
     val_hist=np.array([])
 
-    mod=tensor_fact(n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=opt.latents,n_u=18,n_w=1)
+    mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=opt.latents,n_u=18,n_w=1)
     mod.double()
     mod.to(device)
 
