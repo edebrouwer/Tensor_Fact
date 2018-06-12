@@ -16,7 +16,9 @@ from multiprocessing import Process, Pool
 
 from sklearn import datasets
 
-file_path="./trained_models/Deep_8_dim_250_lr02_HARD/"
+import sys
+
+file_path=sys.argv[1:][0]
 latent_pat=torch.load(file_path+"current_model.pt")["pat_lat.weight"].cpu().numpy() #latents without covariates
     #covariates=pd.read_csv("~/Data/MIMIC/lab_covariates_val.csv").as_matrix() #covariates
     #beta_u=torch.load(file_path+"current_model.pt")["beta_u"].numpy() #Coeffs for covariates
@@ -55,7 +57,7 @@ def compute_AUC(c):
         cv=StratifiedKFold(n_splits=5)
         #print("Baseline : "+str(1-np.sum(tag_mat)/tag_mat.shape[0]))
 
-        #global clf
+        global clf
         clf=svm.SVC(C=c,class_weight="balanced",probability=True,kernel="linear")
 
 
