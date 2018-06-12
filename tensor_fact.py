@@ -28,7 +28,7 @@ parser.add_argument('--death_label',action='store_true',help="Supervised trainin
 parser.add_argument('--hard_split',action='store_true',help="To use the challenging validation splitting")
 #GPU args
 parser.add_argument('--cuda',action='store_true')
-parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu to use for computation")
+parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu to use for computation Titan or Tesla")
 #Savings args
 #parser.add_argument('--outfile',default="./",type=str,help="Path to save the models and outpus")
 
@@ -195,7 +195,7 @@ def main():
         else:
             train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val"+suffix)
-        
+
         mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=opt.latents,n_u=18,n_w=1)
         mod.double()
         mod.to(device)
