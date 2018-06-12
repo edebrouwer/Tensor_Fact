@@ -24,6 +24,8 @@ parser.add_argument('--batch',default=65000,type=int,help="Number of samples per
 #Model selection
 parser.add_argument('--DL',action='store_true',help="To switch to Deep Learning model")
 parser.add_argument('--by_pat',action='store_true',help="To switch to by patient learning")
+parser.add_argument('--death_label',action='store_true',help="Supervised training for the death labs")
+parser.add_argument('--hard_split',action='store_true',help="To use the challenging validation splitting")
 #GPU args
 parser.add_argument('--cuda',action='store_true')
 parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu to use for computation")
@@ -125,10 +127,10 @@ class TensorFactDataset_ByPat(Dataset):
         self.length=self.cov_u.size(0)
        # print(self.cov_u.size())
        # print(self.data_matrix.size())
-       self.tags=pd.read_csv(file_path+"death_tag_tensor").as_matrix()[:,1]
-       self.test_idx=np.random.choice(self.length,size=int(0.2*self.length),replace=False) #0.2 validation rate
-       self.train_tags=self.tags
-       self.train_tags[self.test_idx]=np.nan
+        self.tags=pd.read_csv(file_path+"death_tag_tensor.csv").as_matrix()[:,1]
+        self.test_idx=np.random.choice(self.length,size=int(0.2*self.length),replace=False) #0.2 validation rate
+        self.train_tags=self.tags
+        self.train_tags[self.test_idx]=np.nan
 
     def __len__(self):
         return self.length
@@ -194,7 +196,7 @@ def main():
 
     optimizer=torch.optim.Adam(mod.parameters(), lr=opt.lr,weight_decay=opt.L2) #previously lr 0.03 with good rmse
     criterion = nn.MSELoss()#
-    class_criterion = nn.NLLLoss(weight=[0.9,0.1])
+    class_criterion = nn.NLLLoss(weight=torch.tensor([0.9,0.1]))
     epochs_num=opt.epochs
 
     lowest_val=1
