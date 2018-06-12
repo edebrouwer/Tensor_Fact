@@ -143,7 +143,7 @@ def main():
     str_dir="./"
     for key in vars(opt):
         str_dir+=str(key)+str(vars(opt)[key])+"_"
-    print(str_dir)
+    str_dir+="/"
 
     #Check if output directory exits, otherwise, create it.
     if (not os.path.exists(str_dir)):
