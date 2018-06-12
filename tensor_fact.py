@@ -58,6 +58,9 @@ class tensor_fact(nn.Module):
         self.layer_3=nn.Linear(50,20)
         self.last_layer=nn.Linear(20,1)
 
+        #classification
+        self.layer_class_1=nn.Linear((l_dim+n_u),1)
+
         #Kernel_computation
         x_samp=np.linspace(0,(n_t-1),n_t)
         SexpKernel=np.exp(-(np.array([x_samp]*n_t)-np.expand_dims(x_samp.T,axis=1))**2/(2*l_kernel**2))
@@ -86,10 +89,13 @@ class tensor_fact(nn.Module):
         out=F.relu(self.layer_3(out))
         out=self.last_layer(out).squeeze(1)
         return(out)
+    def label_pred(self,idx_pat,cov_u): #Classifiction task
+        merged_input=torch.cat((self.pat_lat(idx_pat),self.meas_lat(idx_meas)),1)
+        out=F.log_softmax(self.layer_class_1(merged_input))
+        return(out)
     def compute_regul(self):
         regul=torch.trace(torch.exp(-torch.mm(torch.mm(torch.t(self.time_lat.weight),self.inv_Kernel),self.time_lat.weight)))
         return(regul)
-
 
 
 class TensorFactDataset(Dataset):
@@ -119,10 +125,15 @@ class TensorFactDataset_ByPat(Dataset):
         self.length=self.cov_u.size(0)
        # print(self.cov_u.size())
        # print(self.data_matrix.size())
+       self.tags=pd.read_csv(file_path+"death_tag_tensor").as_matrix()[:,1]
+       self.test_idx=np.random.choice(self.length,size=int(0.2*self.length),replace=False) #0.2 validation rate
+       self.train_tags=self.tags
+       self.train_tags[self.test_idx]=np.nan
+
     def __len__(self):
         return self.length
     def __getitem__(self,idx):
-        return([idx,self.data_matrix[idx,:,:],self.cov_u[idx,:]])
+        return([idx,self.data_matrix[idx,:,:],self.cov_u[idx,:],self.train_tags[idx]])
 
 def main():
     #With Adam optimizer
@@ -150,10 +161,14 @@ def main():
     print("GPU num used : "+str(torch.cuda.current_device()))
     print("GPU used : "+str(torch.cuda.get_device_name(torch.cuda.current_device())))
 
+    if opt.hard_split:
+        suffix="_HARD.csv"
+    else:
+        suffix=".csv"
 
 
-    train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train_HARD.csv")
-    val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val_HARD.csv")
+    train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
+    val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
 
     train_hist=np.array([])
     val_hist=np.array([])
@@ -167,16 +182,19 @@ def main():
     else:
         if opt.by_pat:
             fwd_fun=mod.forward_full
-            train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train_HARD.csv")
-            val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val_HARD.csv")
+            train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train"+suffix)
+            val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val"+suffix)
         else:
             fwd_fun=mod.forward
+
+
 
     dataloader = DataLoader(train_dataset, batch_size=opt.batch,shuffle=True,num_workers=2)
     dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
 
     optimizer=torch.optim.Adam(mod.parameters(), lr=opt.lr,weight_decay=opt.L2) #previously lr 0.03 with good rmse
     criterion = nn.MSELoss()#
+    class_criterion = nn.NLLLoss(weight=[0.9,0.1])
     epochs_num=opt.epochs
 
     lowest_val=1
@@ -199,6 +217,12 @@ def main():
                 optimizer.zero_grad()
                 preds=fwd_fun(indexes,cov_u)
                 preds=torch.masked_select(preds,mask)
+                if opt.death_label:
+                    lab_target=sampled_batch[3].to(device)
+                    lab_mask=(lab_target==lab_target)
+                    lab_target=torch.masked_select(lab_target,lab_mask)
+                    lab_preds=mod.label_pred(indexes,cov_u)
+                    lab_preds=torch.masked_select(lab_preds,lab_mask)
             else:
                 indexes=sampled_batch[:,1:4].to(torch.long).to(device)
                 #print("Type of index : "+str(indexes.dtype))
@@ -210,6 +234,8 @@ def main():
                 preds=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
             #print(mod.compute_regul())
             loss=criterion(preds,target)#-mod.compute_regul()
+            if opt.death_label:
+                loss+=class_criterion(lab_preds,lab_target)
             loss.backward()
             # print(mod.time_lat.weight.grad)
             optimizer.step()
@@ -223,28 +249,37 @@ def main():
         train_hist=np.append(train_hist,total_loss.item()/(i_batch+1))
 
         with torch.no_grad():
-            for i_val,batch_val in enumerate(dataloader_val):
-                if opt.by_pat:
-                    indexes=batch_val[0].to(torch.long).to(device)
-                    cov_u=batch_val[2].to(device)
-                    target=batch_val[1].to(device)
-                    mask=target.ne(0)
-                    target=torch.masked_select(target,mask)
-                    optimizer.zero_grad()
-                    pred_val=fwd_fun(indexes,cov_u)
-                    pred_val=torch.masked_select(pred_val,mask)
-                else:
-                    indexes=batch_val[:,1:4].to(torch.long).to(device)
-                    cov_u=batch_val[:,4:22].to(device)
-                    cov_w=batch_val[:,3].unsqueeze(1).to(device)
-                    target=batch_val[:,-1].to(device)
-                    pred_val=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
-                loss_val=criterion(pred_val,target)
+            if opt.death_label: #only classification loss to plot
+                val_preds=mod.label_pred(train_dataset.test_idx.to(device),train_dataset.test_cov_u[train_dataset.test_idx].to(device))
+                loss_val=class_criterion(val_preds,train_dataset.tags[train_dataset.test_idx].to(device))
                 print("Validation Loss :"+str(loss_val))
                 val_hist=np.append(val_hist,loss_val)
                 if loss_val<lowest_val:
                     torch.save(mod.state_dict(),opt.outfile+"best_model.pt")
                     lowest_val=loss_val
+            else:
+                for i_val,batch_val in enumerate(dataloader_val):
+                    if opt.by_pat:
+                        indexes=batch_val[0].to(torch.long).to(device)
+                        cov_u=batch_val[2].to(device)
+                        target=batch_val[1].to(device)
+                        mask=target.ne(0)
+                        target=torch.masked_select(target,mask)
+                        optimizer.zero_grad()
+                        pred_val=fwd_fun(indexes,cov_u)
+                        pred_val=torch.masked_select(pred_val,mask)
+                    else:
+                        indexes=batch_val[:,1:4].to(torch.long).to(device)
+                        cov_u=batch_val[:,4:22].to(device)
+                        cov_w=batch_val[:,3].unsqueeze(1).to(device)
+                        target=batch_val[:,-1].to(device)
+                        pred_val=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
+                    loss_val=criterion(pred_val,target)
+                    print("Validation Loss :"+str(loss_val))
+                    val_hist=np.append(val_hist,loss_val)
+                    if loss_val<lowest_val:
+                        torch.save(mod.state_dict(),opt.outfile+"best_model.pt")
+                        lowest_val=loss_val
 
     torch.save(mod.state_dict(),opt.outfile+"current_model.pt")
     torch.save(train_hist,opt.outfile+"train_history.pt")
