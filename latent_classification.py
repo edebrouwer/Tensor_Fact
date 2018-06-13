@@ -19,7 +19,7 @@ from sklearn import datasets
 import sys
 
 file_path=sys.argv[1:][0]
-latent_pat=torch.load(file_path+"current_model.pt")["pat_lat.weight"].cpu().numpy() #latents without covariates
+latent_pat=torch.load(file_path+"best_model.pt")["pat_lat.weight"].cpu().numpy() #latents without covariates
     #covariates=pd.read_csv("~/Data/MIMIC/lab_covariates_val.csv").as_matrix() #covariates
     #beta_u=torch.load(file_path+"current_model.pt")["beta_u"].numpy() #Coeffs for covariates
     #latent_pat=np.dot(covariates[:,1:],beta_u)
