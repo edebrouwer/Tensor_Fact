@@ -18,8 +18,15 @@ from sklearn import datasets
 
 import sys
 
+from functools import partial
+
 file_path=sys.argv[1:][0]
-latent_pat=torch.load(file_path+"best_model.pt")["pat_lat.weight"].cpu().numpy() #latents without covariates
+
+if "macau" in file_path:
+    latent_pat=np.load(file_path+"mean_pat_latent.npy").T
+else:
+    latent_pat=torch.load(file_path+"best_model.pt")["pat_lat.weight"].cpu().numpy() #latents without covariates
+print(latent_pat.shape)
     #covariates=pd.read_csv("~/Data/MIMIC/lab_covariates_val.csv").as_matrix() #covariates
     #beta_u=torch.load(file_path+"current_model.pt")["beta_u"].numpy() #Coeffs for covariates
     #latent_pat=np.dot(covariates[:,1:],beta_u)
@@ -38,8 +45,9 @@ tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 
 print("Data is Loaded")
 
-def roc_comp(train_test,clf):
+def roc_comp(train_test,c):
     #print("roc_comp with C parameter ="+str(clf.get_params()["C"]))
+    clf=svm.SVC(C=c,class_weight="balanced",probability=True,kernel="rbf",gamma=0.01)
     probas_=clf.fit(latent_pat[train_test[0]],tag_mat[train_test[0]]).predict_proba(latent_pat[train_test[1]])
     fpr, tpr, thresholds = roc_curve(tag_mat[train_test[1]], probas_[:, 1])
     roc_auc = auc(fpr, tpr)
@@ -60,14 +68,14 @@ def compute_AUC(C):
             #print("Baseline : "+str(1-np.sum(tag_mat)/tag_mat.shape[0]))
 
             #global clf
-            clf=svm.SVC(C=c,class_weight="balanced",probability=True,kernel="linear")
+            #clf=svm.SVC(C=c,class_weight="balanced",probability=True,kernel="linear")
 
 
             mean_fpr=np.linspace(0,1,100)
 
             print("Start New mp with parameter C = "+str(c))
             pool=mp.Pool(processes=10)#, initializer=init)
-            results = pool.map(roc_comp,cv.split(latent_pat,tag_mat))
+            results = pool.map(partial(roc_comp,c=c),cv.split(latent_pat,tag_mat))
             print("Results dim for C = "+str(c)+" is "+str(len(results)))
             pool.close()
             pool.join()
@@ -94,6 +102,7 @@ def compute_AUC(C):
             mean_auc = auc(mean_fpr, mean_tpr)
             std_auc = np.std(roc_aucs)
             plt.plot(mean_fpr, mean_tpr, color='b',label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),lw=2, alpha=.8)
+            print("Mean AUC for C="+str(c)+" is "+str(mean_auc))
 
             std_tpr = np.std(tprs, axis=0)
             tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
@@ -123,11 +132,11 @@ class MyPool(PoolParent):
     Process=NoDaemonProcess
 
 
-C_vec=[0.0001,0.001,0.01,1,10,100,1000]
+C_vec=[0.01,0.1,1,10,100,1000]
 #main_pool=MyPool(processes=3)
 #res=[main_pool.apply_async(compute_AUC,(c,)) for c in C_vec]
 #result_fin=[r.get() for r in res]
-compute_AUC(C)
+compute_AUC(C_vec)
 print("Processing Finished")
 # for res_vec in result_fin:
 #     plt.figure()
