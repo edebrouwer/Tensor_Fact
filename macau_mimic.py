@@ -4,12 +4,14 @@ import pandas as pd
 import numpy as np
 
 import os
+import shutil
 
 parser=argparse.ArgumentParser(description="Bayesian Tensor Factorization")
 
 
-parser.add_argument('--latents',default=8,type=float,help="Number of latent dimensions")
+parser.add_argument('--latents',default=8,type=int,help="Number of latent dimensions")
 parser.add_argument('--hard',action='store_true',help="Challenging validation split")
+parser.add_argument('--samples',default=400,type=int,help="Number of samples after burnin")
 
 opt=parser.parse_args()
 
@@ -22,6 +24,8 @@ else:
     replace_prev=input("This configuration has already been run !Do you want to continue ? y/n")
     if (replace_prev=="n"):
         raise ValueError("Aborted")
+    shutil.rmtree(str_dir)
+    os.makedirs(str_dir)
 
 dir_path="~/Data/MIMIC/"
 lab_short=pd.read_csv(dir_path+"lab_short_tensor_train.csv")
@@ -37,9 +41,30 @@ cov_t=np.expand_dims(np.arange(101),axis=1)
 print(cov_u.shape)
 print(cov_t.shape)
 
-results=macau.macau(Y=df,Ytest=df_val,side=[cov_u,None,cov_t],num_latent=num_latents,verbose=True,burnin=400,precision="adaptive",save_prefix=save_prefix)
+results=macau.macau(Y=df,Ytest=df_val,side=[cov_u,None,cov_t],num_latent=num_latents,verbose=True,burnin=400,nsamples=opt.samples,precision="adaptive",save_prefix=save_prefix)
 
 files= os.listdir("./")
 for f in files:
     if (f.startswith(save_prefix)):
         shutil.move(f,str_dir)
+
+import progressbar
+
+#EXTRACT THE LATENTS OF MACAU AND COMPUTES THE MEAN.
+
+#loading_latent_matrices
+file_path=save_prefix
+N=opt.samples
+
+mean_lat_pat=0
+mean_lat_meas=0
+mean_lat_time=0
+for n in progressbar.progressbar(range(1,N+1)):
+    mean_lat_pat+=np.loadtxt(str_dir+file_path+"-sample%d-U1-latents.csv"%n,delimiter=",")
+    #mean_lat_meas+=np.loadtxt(dir_path+file_path+"sample%d-U2-latents.csv"%n,delimiter=",")
+    #mean_lat_time+=np.loadtxt(dir_path+file_path+"sample%d-U3-latents.csv"%n,delimiter=",")
+
+mean_lat_pat/=N
+np.save(str_dir+"mean_pat_latent.npy",mean_lat_pat)
+
+print("Loaded")
