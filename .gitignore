@@ -1,0 +1,4 @@
+
+
+/trained_models/*.pt
+/results_macau/*.csv
