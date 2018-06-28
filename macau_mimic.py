@@ -36,12 +36,14 @@ df_val=lab_short[["UNIQUE_ID","LABEL_CODE","TIME_STAMP","VALUENORM"]]
 
 cov_values=[chr(i) for i in range(ord('A'),ord('A')+18)]
 cov_u=lab_short.groupby("UNIQUE_ID").first()[cov_values].as_matrix()
-cov_t=np.expand_dims(np.arange(101),axis=1)
+cov_t=np.expand_dims(np.arange(97),axis=1)
 
 print(cov_u.shape)
 print(cov_t.shape)
 
 results=macau.macau(Y=df,Ytest=df_val,side=[cov_u,None,cov_t],num_latent=num_latents,verbose=True,burnin=400,nsamples=opt.samples,precision="adaptive",save_prefix=save_prefix)
+
+print("TEST RMSE : "+str(results.rmse_test))
 
 files= os.listdir("./")
 for f in files:

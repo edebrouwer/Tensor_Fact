@@ -132,7 +132,7 @@ class MyPool(PoolParent):
     Process=NoDaemonProcess
 
 
-C_vec=[0.01,0.1,1,10,100,1000]
+C_vec=[0.01,0.1,1,10,100]
 #main_pool=MyPool(processes=3)
 #res=[main_pool.apply_async(compute_AUC,(c,)) for c in C_vec]
 #result_fin=[r.get() for r in res]
