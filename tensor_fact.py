@@ -34,7 +34,7 @@ parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu 
 
 
 class tensor_fact(nn.Module):
-    def __init__(self,device,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,l_kernel=3,sig2_kernel=1):
+    def __init__(self,device,covariates,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,l_kernel=3,sig2_kernel=1):
         super(tensor_fact,self).__init__()
         self.n_pat=n_pat
         self.n_meas=n_meas
@@ -52,6 +52,9 @@ class tensor_fact(nn.Module):
         self.beta_w=nn.Parameter(torch.randn([n_w,l_dim],requires_grad=True))#.double())
 
         self.cov_w_fixed=torch.tensor(range(0,n_t),device=device,dtype=torch.double,requires_grad=False).unsqueeze(1)#.double()
+        self.covariates_u=nn.Embedding(n_pat,covariates.size(1))
+        self.covariates_u.weight=covariates
+        self.covariates_u.weight.requires_grad=False
 
         full_dim=3*l_dim+n_u+n_w
         #print(full_dim)
@@ -71,7 +74,7 @@ class tensor_fact(nn.Module):
         self.inv_Kernel=torch.tensor(np.linalg.inv(SexpKernel)/sig2_kernel,requires_grad=False)
 
     def forward(self,idx_pat,idx_meas,idx_t,cov_u,cov_w):
-        pred=((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(cov_w,self.beta_w))).sum(1)
+        pred=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u(idx_pat),self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(cov_w,self.beta_w))).sum(1)
         return(pred)
     def forward_full(self,idx_pat,cov_u):
         #cov_w=torch.tensor(range(0,101)).unsqueeze(1)#.double()
@@ -123,7 +126,7 @@ class TensorFactDataset(Dataset):
         print(self.test_covariates.size())
         print(self.test_labels.size())
 
-        self.cov_u=pd.read_csv(file_path+"lab_covariates_val.csv").as_matrix()[:,1:]
+        self.cov_u=torch.tensor(pd.read_csv(file_path+"lab_covariates_val.csv").as_matrix()[:,1:]).to(torch.double)
 
     def __len__(self):
         return self.length
@@ -208,7 +211,7 @@ def main():
             train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val"+suffix)
 
-        mod=tensor_fact(device=device,n_pat=train_dataset.length,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+        mod=tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.length,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
         mod.double()
         mod.to(device)
 
@@ -217,20 +220,20 @@ def main():
         if opt.DL:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-            mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward_DL
         elif opt.death_label:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor.csv") #Full dataset for the Training
-            mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward
         else:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-            mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward
