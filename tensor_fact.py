@@ -43,15 +43,15 @@ class tensor_fact(nn.Module):
         self.n_u=n_u
         self.n_w=n_w
         self.pat_lat=nn.Embedding(n_pat,l_dim) #sparse gradients ?
-        self.pat_lat.weight=nn.Parameter(0.25*torch.randn([n_pat,l_dim]))
+        self.pat_lat.weight=nn.Parameter(0.05*torch.randn([n_pat,l_dim]))
         self.meas_lat=nn.Embedding(n_meas,l_dim)
-        self.meas_lat.weight=nn.Parameter(0.25*torch.randn([n_meas,l_dim]))
+        self.meas_lat.weight=nn.Parameter(0.05*torch.randn([n_meas,l_dim]))
         self.time_lat=nn.Embedding(n_t,l_dim)#.double()
         self.time_lat.weight=nn.Parameter(0.005*torch.randn([n_t,l_dim]))
         self.beta_u=nn.Parameter(torch.randn([n_u,l_dim],requires_grad=True))#.double())
         self.beta_w=nn.Parameter(torch.randn([n_w,l_dim],requires_grad=True))#.double())
 
-        self.cov_w_fixed=torch.tensor(range(0,101),device=device,dtype=torch.double,requires_grad=False).unsqueeze(1)#.double()
+        self.cov_w_fixed=torch.tensor(range(0,n_t),device=device,dtype=torch.double,requires_grad=False).unsqueeze(1)#.double()
 
         full_dim=3*l_dim+n_u+n_w
         #print(full_dim)
@@ -139,8 +139,9 @@ class TensorFactDataset_ByPat(Dataset):
         sparse_data=torch.sparse.DoubleTensor(idx_tens.t(),val_tens)
         self.data_matrix=sparse_data.to_dense()
         cov_values=[chr(i) for i in range(ord('A'),ord('A')+18)]
-        covariates=self.lab_short.groupby("UNIQUE_ID").first()[cov_values]
-        self.cov_u=torch.DoubleTensor(covariates.as_matrix())
+        #covariates=self.lab_short.groupby("UNIQUE_ID").first()[cov_values]
+        #self.cov_u=torch.DoubleTensor(covariates.as_matrix())
+        self.cov_u=torch.tensor(pd.read_csv(file_path+"lab_covariates_val.csv").as_matrix()[:,1:]).to(torch.double)
         self.length=self.cov_u.size(0)
        # print(self.cov_u.size())
        # print(self.data_matrix.size())
@@ -155,6 +156,8 @@ class TensorFactDataset_ByPat(Dataset):
         return([idx,self.data_matrix[idx,:,:],self.cov_u[idx,:],self.train_tags[idx]])
 
 def main():
+
+    N_t=97 # NUmber of time steps
     #With Adam optimizer
     opt=parser.parse_args()
     str_dir="./trained_models/"
@@ -205,7 +208,7 @@ def main():
             train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val"+suffix)
 
-        mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=opt.latents,n_u=18,n_w=1)
+        mod=tensor_fact(device=device,n_pat=train_dataset.length,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
         mod.double()
         mod.to(device)
 
@@ -214,20 +217,20 @@ def main():
         if opt.DL:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-            mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=opt.latents,n_u=18,n_w=1)
+            mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward_DL
         elif opt.death_label:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor.csv") #Full dataset for the Training
-            mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=opt.latents,n_u=18,n_w=1)
+            mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward
         else:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-            mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=101,l_dim=opt.latents,n_u=18,n_w=1)
+            mod=tensor_fact(device=device,n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward
