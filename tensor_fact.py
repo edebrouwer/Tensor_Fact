@@ -122,6 +122,9 @@ class TensorFactDataset(Dataset):
         self.test_covariates=torch.tensor(covariates.loc[covariates["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID")[self.cov_values].as_matrix()).to(torch.double)
         print(self.test_covariates.size())
         print(self.test_labels.size())
+
+        self.cov_u=pd.read_csv(file_path+"lab_covariates_val.csv").as_matrix()[:,1:]
+
     def __len__(self):
         return self.length
     def __getitem__(self,idx):
@@ -281,7 +284,7 @@ def main():
                     lab_preds=torch.masked_select(lab_preds,lab_mask.unsqueeze(1))
             #print(mod.compute_regul())
             loss=criterion(preds,target)#-mod.compute_regul()
-            if opt.death_label:           
+            if opt.death_label:
                 loss+=class_criterion(lab_preds,lab_target)
             loss.backward()
             # print(mod.time_lat.weight.grad)
