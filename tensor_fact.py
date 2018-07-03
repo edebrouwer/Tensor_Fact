@@ -26,6 +26,7 @@ parser.add_argument('--DL',action='store_true',help="To switch to Deep Learning 
 parser.add_argument('--by_pat',action='store_true',help="To switch to by patient learning")
 parser.add_argument('--death_label',action='store_true',help="Supervised training for the death labs")
 parser.add_argument('--hard_split',action='store_true',help="To use the challenging validation splitting")
+parser.add_argument('--XT',action='store_true',help="To use DL model on top of the product of latents")
 #GPU args
 parser.add_argument('--cuda',action='store_true')
 parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu to use for computation Titan or Tesla")
@@ -104,12 +105,11 @@ class tensor_fact(nn.Module):
         out=F.relu(self.layer_3(out))
         out=self.last_layer(out).squeeze(1)
         return(out)
-    def forward_XT(self,idx_pat,idx_meas,idx_t,cov_u,cov_t):
+    def forward_XT(self,idx_pat,idx_meas,idx_t,cov_u,cov_w):
         latent=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(cov_w,self.beta_w)))
         out=F.relu(self.layer_1(latent))
         out=F.relu(self.layer_2(out))
-        out=F.relu(self.layer_3(out))
-        print(out.size())
+        out=F.relu(self.layer_3(out)).squeeze(1)
         return(out)
 
     def label_pred(self,idx_pat,cov_u): #Classifiction task
@@ -247,6 +247,13 @@ def main():
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward
+        elif opt.XT:
+            train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
+            val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="XT",n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+            mod.double()
+            mod.to(device)
+            fwd_fun=mod.forward_XT
         else:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
