@@ -52,9 +52,9 @@ class tensor_fact(nn.Module):
         self.beta_w=nn.Parameter(torch.randn([n_w,l_dim],requires_grad=True))#.double())
 
         self.cov_w_fixed=torch.tensor(range(0,n_t),device=device,dtype=torch.double,requires_grad=False).unsqueeze(1)#.double()
-        self.covariates_u=nn.Embedding(n_pat,covariates.size(1))
-        self.covariates_u.weight=covariates
-        self.covariates_u.weight.requires_grad=False
+        self.covariates_u=covariates.to(device)
+        #self.covariates_u.load_state_dict({'weight':covariates})
+        #self.covariates_u.weight.requires_grad=False
 
         full_dim=3*l_dim+n_u+n_w
         #print(full_dim)
@@ -74,7 +74,7 @@ class tensor_fact(nn.Module):
         self.inv_Kernel=torch.tensor(np.linalg.inv(SexpKernel)/sig2_kernel,requires_grad=False)
 
     def forward(self,idx_pat,idx_meas,idx_t,cov_u,cov_w):
-        pred=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u(idx_pat),self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(cov_w,self.beta_w))).sum(1)
+        pred=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(cov_w,self.beta_w))).sum(1)
         return(pred)
     def forward_full(self,idx_pat,cov_u):
         #cov_w=torch.tensor(range(0,101)).unsqueeze(1)#.double()
