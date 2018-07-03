@@ -18,6 +18,9 @@ import sys
 
 from functools import partial
 
+import optunity
+import optunity.metrics
+
 file_path=sys.argv[1:][0]
 
 if "macau" in file_path:
@@ -34,7 +37,7 @@ print("Data is Loaded")
 
 def roc_comp(train_test):
     #print("roc_comp with C parameter ="+str(clf.get_params()["C"]))
-    clf=RandomForestClassifier(max_depth=2,random_state=0)
+    clf=RandomForestClassifier(max_depth=None,n_estimators=2000,class_weight="balanced")
     probas_=clf.fit(latent_pat[train_test[0]],tag_mat[train_test[0]]).predict_proba(latent_pat[train_test[1]])
     fpr, tpr, thresholds = roc_curve(tag_mat[train_test[1]], probas_[:, 1])
     roc_auc = auc(fpr, tpr)
@@ -48,7 +51,7 @@ def compute_AUC(C):
 
             print("Start New mp with parameter C = "+str(c))
             pool=mp.Pool(processes=10)#, initializer=init)
-            results = pool.map(cv.split(latent_pat,tag_mat))
+            results = pool.map(roc_comp,cv.split(latent_pat,tag_mat))
             print("Results dim for C = "+str(c)+" is "+str(len(results)))
             pool.close()
             pool.join()
@@ -81,8 +84,20 @@ def compute_AUC(C):
             plt.title('Receiver operating characteristic example')
             plt.legend(loc="lower right")
             print("Saving Figure for C = "+str(c))
-            plt.savefig(file_path+"AUC_SVM_C"+str(c).replace(".","_")+".pdf")
+            plt.savefig(file_path+"AUC_RF_C"+str(c).replace(".","_")+".pdf")
             print("Done with thread C = "+str(c))
         return(0)
 
-compute_AUC([0])
+@optunity.cross_validated(x=latent_pat,y=tag_mat,num_folds=10,num_iter=2)
+def RF_auc(x_train,y_train,x_test,y_test,log_n_est,max_depth):
+        model=RandomForestClassifier(max_depth=int(max_depth),n_estimators=int(10**log_n_est),class_weight="balanced")
+        probs_=model.fit(x_train, y_train).predict_proba(x_test)
+        auc_roc=optunity.metrics.roc_auc(y_test,probs_[:,1])
+        print("AUC for n_est ="+str(10**log_n_est)+"and max_depth ="+str(max_depth)+" is "+str(auc_roc))
+        return(auc_roc)
+
+hps, a, b = optunity.maximize(RF_auc,num_evals=200,log_n_est=[1.5,3.5],max_depth=[1,30])
+optimal_model=RandomForestClassifier(n_estimators=int(10**hps['log_n_est']),max_depth=hps['max_depth'],class_weight="balanced")
+print(hps["n_estimators"])
+#compute_AUC([0])
+#optunity_RF()
