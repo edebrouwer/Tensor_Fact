@@ -34,7 +34,8 @@ parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu 
 
 
 class tensor_fact(nn.Module):
-    def __init__(self,device,covariates,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,l_kernel=3,sig2_kernel=1):
+    def __init__(self,device,covariates,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,mode="Normal",l_kernel=3,sig2_kernel=1):
+        #mode can be Normal, Deep, XT , Class or  by_pat
         super(tensor_fact,self).__init__()
         self.n_pat=n_pat
         self.n_meas=n_meas
@@ -58,20 +59,28 @@ class tensor_fact(nn.Module):
 
         full_dim=3*l_dim+n_u+n_w
         #print(full_dim)
-        self.layer_1=nn.Linear(full_dim,50)
-        self.layer_2=nn.Linear(50,50)
-        self.layer_3=nn.Linear(50,20)
-        self.last_layer=nn.Linear(20,1)
 
-        #classification
-        self.layer_class_1=nn.Linear((l_dim+n_u),20)
-        self.layer_class_2=nn.Linear(20,1)
+        if (mode=="Deep"):
+            self.layer_1=nn.Linear(full_dim,50)
+            self.layer_2=nn.Linear(50,50)
+            self.layer_3=nn.Linear(50,20)
+            self.last_layer=nn.Linear(20,1)
+
+        if (mode=="Class"):
+            #classification
+            self.layer_class_1=nn.Linear((l_dim+n_u),20)
+            self.layer_class_2=nn.Linear(20,1)
+
+        if (mode=="XT"):
+            self.layer_1=nn.Linear(l_dim,20)
+            self.layer_2=nn.Linear(20,20)
+            self.layer_3=nn.Linear(20,1)
 
         #Kernel_computation
-        x_samp=np.linspace(0,(n_t-1),n_t)
-        SexpKernel=np.exp(-(np.array([x_samp]*n_t)-np.expand_dims(x_samp.T,axis=1))**2/(2*l_kernel**2))
-        SexpKernel[SexpKernel<0.1]=0
-        self.inv_Kernel=torch.tensor(np.linalg.inv(SexpKernel)/sig2_kernel,requires_grad=False)
+        #x_samp=np.linspace(0,(n_t-1),n_t)
+        #SexpKernel=np.exp(-(np.array([x_samp]*n_t)-np.expand_dims(x_samp.T,axis=1))**2/(2*l_kernel**2))
+        #SexpKernel[SexpKernel<0.1]=0
+        #self.inv_Kernel=torch.tensor(np.linalg.inv(SexpKernel)/sig2_kernel,requires_grad=False)
 
     def forward(self,idx_pat,idx_meas,idx_t,cov_u,cov_w):
         pred=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(cov_w,self.beta_w))).sum(1)
@@ -95,6 +104,14 @@ class tensor_fact(nn.Module):
         out=F.relu(self.layer_3(out))
         out=self.last_layer(out).squeeze(1)
         return(out)
+    def forward_XT(self,idx_pat,idx_meas,idx_t,cov_u,cov_t):
+        latent=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(cov_w,self.beta_w)))
+        out=F.relu(self.layer_1(latent))
+        out=F.relu(self.layer_2(out))
+        out=F.relu(self.layer_3(out))
+        print(out.size())
+        return(out)
+
     def label_pred(self,idx_pat,cov_u): #Classifiction task
         merged_input=torch.cat((self.pat_lat(idx_pat),cov_u),1)
         out=F.relu(self.layer_class_1(merged_input))
@@ -211,7 +228,7 @@ def main():
             train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val"+suffix)
 
-        mod=tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.length,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+        mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="by_pat",n_pat=train_dataset.length,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
         mod.double()
         mod.to(device)
 
@@ -220,20 +237,20 @@ def main():
         if opt.DL:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Deep",n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward_DL
         elif opt.death_label:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor.csv") #Full dataset for the Training
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Class",n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward
         else:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Normal",n_pat=train_dataset.pat_num,n_meas=30,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward
