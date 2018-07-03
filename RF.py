@@ -88,7 +88,7 @@ def compute_AUC(C):
             print("Done with thread C = "+str(c))
         return(0)
 
-@optunity.cross_validated(x=latent_pat,y=tag_mat,num_folds=10,num_iter=2)
+@optunity.cross_validated(x=latent_pat,y=tag_mat,num_folds=5)
 def RF_auc(x_train,y_train,x_test,y_test,log_n_est,max_depth):
         model=RandomForestClassifier(max_depth=int(max_depth),n_estimators=int(10**log_n_est),class_weight="balanced")
         probs_=model.fit(x_train, y_train).predict_proba(x_test)
