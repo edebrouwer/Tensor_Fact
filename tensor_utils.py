@@ -1,3 +1,17 @@
+
+import argparse
+import pandas as pd
+import numpy as np
+import torch
+import torch.nn as nn
+
+import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
+import torch.nn.functional as F
+
+
+
+
 class tensor_fact(nn.Module):
     def __init__(self,device,covariates,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,mode="Normal",l_kernel=3,sig2_kernel=1):
         #mode can be Normal, Deep, XT , Class or  by_pat
@@ -84,28 +98,30 @@ class tensor_fact(nn.Module):
     def compute_regul(self):
         regul=torch.trace(torch.exp(-torch.mm(torch.mm(torch.t(self.time_lat.weight),self.inv_Kernel),self.time_lat.weight)))
         return(regul)
+
+
 class TensorFactDataset(Dataset):
     def __init__(self,csv_file_serie="lab_short_tensor.csv",file_path="~/Data/MIMIC/",transform=None):
         self.lab_short=pd.read_csv(file_path+csv_file_serie)
         self.length=len(self.lab_short.index)
         self.pat_num=self.lab_short["UNIQUE_ID"].nunique()
-        self.cov_values=[chr(i) for i in range(ord('A'),ord('A')+18)]
+        
         self.time_values=["TIME_STAMP","TIME_SQ"]
 
         #Randomly select patients for classification validation.
-        self.test_idx=np.random.choice(self.pat_num,size=int(0.2*self.pat_num),replace=False) #0.2 validation rate
-        self.lab_short.loc[self.lab_short["UNIQUE_ID"].isin(self.test_idx),"DEATHTAG"]=np.nan
+        #self.test_idx=np.random.choice(self.pat_num,size=int(0.2*self.pat_num),replace=False) #0.2 validation rate
+        #self.lab_short.loc[self.lab_short["UNIQUE_ID"].isin(self.test_idx),"DEATHTAG"]=np.nan
         self.tensor_mat=self.lab_short.as_matrix()
 
-        self.tags=pd.read_csv(file_path+"death_tag_tensor.csv")
-        self.test_labels=torch.tensor(self.tags.loc[self.tags["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID").as_matrix())
+        #self.tags=pd.read_csv(file_path+"death_tag_tensor.csv")
+        #self.test_labels=torch.tensor(self.tags.loc[self.tags["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID").as_matrix())
        # self.test_covariates=torch.tensor(self.lab_short.loc[self.lab_short["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID")[self.cov_values].as_matrix()).to(torch.double)
-        covariates=self.lab_short.groupby("UNIQUE_ID").first()[self.cov_values].reset_index()
-        self.test_covariates=torch.tensor(covariates.loc[covariates["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID")[self.cov_values].as_matrix()).to(torch.double)
-        print(self.test_covariates.size())
-        print(self.test_labels.size())
+        #covariates=self.lab_short.groupby("UNIQUE_ID").first()[self.cov_values].reset_index()
+        #self.test_covariates=torch.tensor(covariates.loc[covariates["UNIQUE_ID"].isin(self.test_idx)].sort_values(by="UNIQUE_ID")[self.cov_values].as_matrix()).to(torch.double)
+        #print(self.test_covariates.size())
+        #print(self.test_labels.size())
 
-        self.cov_u=torch.tensor(pd.read_csv(file_path+"lab_covariates_val.csv").as_matrix()[:,1:]).to(torch.double)
+        self.cov_u=torch.tensor(pd.read_csv(file_path+"complete_covariates.csv").as_matrix()[:,1:]).to(torch.double)
 
     def __len__(self):
         return self.length
