@@ -61,8 +61,8 @@ class tensor_fact(nn.Module):
         #SexpKernel[SexpKernel<0.1]=0
         #self.inv_Kernel=torch.tensor(np.linalg.inv(SexpKernel)/sig2_kernel,requires_grad=False)
 
-    def forward(self,idx_pat,idx_meas,idx_t,cov_u,cov_w):
-        pred=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(cov_w,self.beta_w))).sum(1)
+    def forward(self,idx_pat,idx_meas,idx_t):
+        pred=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(self.cov_w_fixed[idx_t,:],self.beta_w))).sum(1)
         return(pred)
     def forward_full(self,idx_pat,cov_u):
         #cov_w=torch.tensor(range(0,101)).unsqueeze(1)#.double()
@@ -83,8 +83,8 @@ class tensor_fact(nn.Module):
         out=F.relu(self.layer_3(out))
         out=self.last_layer(out).squeeze(1)
         return(out)
-    def forward_XT(self,idx_pat,idx_meas,idx_t,cov_u,cov_w):
-        latent=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(cov_w,self.beta_w)))
+    def forward_XT(self,idx_pat,idx_meas,idx_t):
+        latent=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(self.cov_w_fixed[idx_t,:],self.beta_w)))
         out=F.relu(self.layer_1(latent))
         out=F.relu(self.layer_2(out))
         out=F.relu(self.layer_3(out)).squeeze(1)
@@ -105,7 +105,8 @@ class TensorFactDataset(Dataset):
         self.lab_short=pd.read_csv(file_path+csv_file_serie)
         self.length=len(self.lab_short.index)
         self.pat_num=self.lab_short["UNIQUE_ID"].nunique()
-        
+        self.meas_num=self.lab_short["LABEL_CODE"].nunique()
+
         self.time_values=["TIME_STAMP","TIME_SQ"]
 
         #Randomly select patients for classification validation.
@@ -122,6 +123,7 @@ class TensorFactDataset(Dataset):
         #print(self.test_labels.size())
 
         self.cov_u=torch.tensor(pd.read_csv(file_path+"complete_covariates.csv").as_matrix()[:,1:]).to(torch.double)
+        self.covu_num=self.cov_u.size(1)
 
     def __len__(self):
         return self.length

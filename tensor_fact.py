@@ -90,7 +90,7 @@ def main():
             train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val"+suffix)
 
-        mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="by_pat",n_pat=train_dataset.length,n_meas=train_data_set.meas_num,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+        mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="by_pat",n_pat=train_dataset.length,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
         mod.double()
         mod.to(device)
 
@@ -99,27 +99,27 @@ def main():
         if opt.DL:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Deep",n_pat=train_dataset.pat_num,n_meas=train_data_set.meas_num,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Deep",n_pat=train_dataset.pat_num,n_meas=train_data_set.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward_DL
         elif opt.death_label:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor.csv") #Full dataset for the Training
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Class",n_pat=train_dataset.pat_num,n_meas=train_data_set.meas_num,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Class",n_pat=train_dataset.pat_num,n_meas=train_data_set.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward
         elif opt.XT:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="XT",n_pat=train_dataset.pat_num,n_meas=train_data_set.meas_num,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="XT",n_pat=train_dataset.pat_num,n_meas=train_data_set.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward_XT
         else:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Normal",n_pat=train_dataset.pat_num,n_meas=train_data_set.meas_num,n_t=N_t,l_dim=opt.latents,n_u=18,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Normal",n_pat=train_dataset.pat_num,n_meas=train_data_set.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward
@@ -128,7 +128,7 @@ def main():
     if not opt.death_label:
         dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
 
-    optimizer=torch.optim.Adam(mod.parameters(), lr=opt.lr,weight_decay=opt.L2) #previously lr 0.03 with good rmse
+    optimizer=torch.optim.Adam(mod.parameters(), lr=opt.lr,weight_decay=opt.L2)
     criterion = nn.MSELoss()#
     class_criterion = nn.BCELoss()
     epochs_num=opt.epochs
@@ -162,12 +162,12 @@ def main():
             else:
                 indexes=sampled_batch[:,1:4].to(torch.long).to(device)
                 #print("Type of index : "+str(indexes.dtype))
-                cov_u=sampled_batch[:,5:23].to(device)
-                cov_w=sampled_batch[:,3].unsqueeze(1).to(device)
+                #cov_u=sampled_batch[:,5:23].to(device)
+                #cov_w=sampled_batch[:,3].unsqueeze(1).to(device)
                 target=sampled_batch[:,-1].to(device)
 
                 optimizer.zero_grad()
-                preds=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
+                preds=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2])
                 if opt.death_label:
                     lab_target=sampled_batch[:,4].to(torch.double).to(device)
                     lab_mask=(lab_target==lab_target)
@@ -217,11 +217,11 @@ def main():
                         pred_val=torch.masked_select(pred_val,mask)
                     else:
                         indexes=batch_val[:,1:4].to(torch.long).to(device)
-                        cov_u=batch_val[:,5:23].to(device)
-                        cov_w=batch_val[:,3].unsqueeze(1).to(device)
+                        #cov_u=batch_val[:,5:23].to(device)
+                        #cov_w=batch_val[:,3].unsqueeze(1).to(device)
                         target=batch_val[:,-1].to(device)
-                        target_lab=batch_val[:,4].to(device)
-                        pred_val=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2],cov_u,cov_w)
+                        #target_lab=batch_val[:,4].to(device)
+                        pred_val=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2])
                     loss_val=criterion(pred_val,target)
                     print("Validation Loss :"+str(loss_val))
                     val_hist=np.append(val_hist,loss_val)
