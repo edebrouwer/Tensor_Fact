@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from tensor_utils import tensor_fact,TensorFactDataset, TensorFactDataset_ByPat
 
 import os
+import time
 #Check Ethan Rosenthal github
 
 
@@ -39,94 +40,12 @@ parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu 
 
 def main():
 
-    N_t=97 # NUmber of time steps
-    #With Adam optimizer
     opt=parser.parse_args()
-    str_dir="./trained_models/"
-    for key in vars(opt):
-        str_dir+=str(key)+str(vars(opt)[key])+"_"
-    str_dir+="/"
 
-    #Check if output directory exits, otherwise, create it.
-    if (not os.path.exists(str_dir)):
-        os.makedirs(str_dir)
-    else:
-        replace_prev=input("This configuration has already been run !Do you want to continue ? y/n")
-        if (replace_prev=="n"):
-            raise ValueError("Aborted")
-    import time
-
-    #Gpu selection
-    gpu_id="1"
-    if opt.gpu_name=="Tesla":
-        gpu_id="0"
-
-    os.environ["CUDA_VISIBLE_DEVICES"]=gpu_id
-
-    if opt.cuda:
-        device=torch.device("cuda:0")
-    else:
-        device=torch.device("cpu")
-    print("Device : "+str(device))
-
-    print("GPU num used : "+str(torch.cuda.current_device()))
-    print("GPU used : "+str(torch.cuda.get_device_name(torch.cuda.current_device())))
-
-    if opt.hard_split:
-        suffix="_HARD.csv"
-    else:
-        suffix=".csv"
-
+    dataloader, dataloader_val, mod = tensor_utils.mode_select(opt)
 
     train_hist=np.array([])
     val_hist=np.array([])
-
-    if opt.by_pat:
-        if opt.DL:
-            raise ValueError("Deep Learning with data feeding by patient is not supported yet")
-        elif opt.death_label:
-            train_dataset=TensorFactDataset_ByPat(csv_file_serie="complete_tensor.csv") #Full dataset for the Training
-        else:
-            train_dataset=TensorFactDataset_ByPat(csv_file_serie="complete_tensor_train"+suffix)
-            val_dataset=TensorFactDataset_ByPat(csv_file_serie="complete_tensor_val"+suffix)
-
-        mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="by_pat",n_pat=train_dataset.length,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
-        mod.double()
-        mod.to(device)
-
-        fwd_fun=mod.forward_full
-    else:
-        if opt.DL:
-            train_dataset=TensorFactDataset(csv_file_serie="complete_tensor_train"+suffix)
-            val_dataset=TensorFactDataset(csv_file_serie="complete_tensor_val"+suffix)
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Deep",n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
-            mod.double()
-            mod.to(device)
-            fwd_fun=mod.forward_DL
-        elif opt.death_label:
-            train_dataset=TensorFactDataset(csv_file_serie="complete_tensor.csv") #Full dataset for the Training
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Class",n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
-            mod.double()
-            mod.to(device)
-            fwd_fun=mod.forward
-        elif opt.XT:
-            train_dataset=TensorFactDataset(csv_file_serie="complete_tensor_train"+suffix)
-            val_dataset=TensorFactDataset(csv_file_serie="complete_tensor_val"+suffix)
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="XT",n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
-            mod.double()
-            mod.to(device)
-            fwd_fun=mod.forward_XT
-        else:
-            train_dataset=TensorFactDataset(csv_file_serie="complete_tensor_train"+suffix)
-            val_dataset=TensorFactDataset(csv_file_serie="complete_tensor_val"+suffix)
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Normal",n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
-            mod.double()
-            mod.to(device)
-            fwd_fun=mod.forward
-
-    dataloader = DataLoader(train_dataset, batch_size=opt.batch,shuffle=True,num_workers=2)
-    if not opt.death_label:
-        dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
 
     optimizer=torch.optim.Adam(mod.parameters(), lr=opt.lr,weight_decay=opt.L2)
     criterion = nn.MSELoss()#
@@ -151,7 +70,7 @@ def main():
                 mask=target.ne(0)
                 target=torch.masked_select(target,mask)
                 optimizer.zero_grad()
-                preds=fwd_fun(indexes)
+                preds=mod.forward(indexes)
                 preds=torch.masked_select(preds,mask)
                 if opt.death_label:
                     lab_target=sampled_batch[3].to(device)
@@ -164,7 +83,7 @@ def main():
                 target=sampled_batch[:,-1].to(device)
 
                 optimizer.zero_grad()
-                preds=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2])
+                preds=mod.forward(indexes[:,0],indexes[:,1],indexes[:,2])
                 if opt.death_label:
                     lab_target=sampled_batch[:,4].to(torch.double).to(device)
                     lab_mask=(lab_target==lab_target)
@@ -210,12 +129,12 @@ def main():
                         mask=target.ne(0)
                         target=torch.masked_select(target,mask)
                         optimizer.zero_grad()
-                        pred_val=fwd_fun(indexes)
+                        pred_val=mod.forward(indexes)
                         pred_val=torch.masked_select(pred_val,mask)
                     else:
                         indexes=batch_val[:,1:4].to(torch.long).to(device)
                         target=batch_val[:,-1].to(device)
-                        pred_val=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2])
+                        pred_val=mod.forward(indexes[:,0],indexes[:,1],indexes[:,2])
                     loss_val=criterion(pred_val,target)
                     print("Validation Loss :"+str(loss_val))
                     val_hist=np.append(val_hist,loss_val)
