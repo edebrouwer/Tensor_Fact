@@ -31,9 +31,10 @@ print(latent_pat.shape)
     #beta_u=torch.load(file_path+"current_model.pt")["beta_u"].numpy() #Coeffs for covariates
     #latent_pat=np.dot(covariates[:,1:],beta_u)
 
-tags=pd.read_csv("~/Data/MIMIC/death_tag_tensor.csv").sort_values("UNIQUE_ID")
+tags=pd.read_csv("~/Data/MIMIC/death_tags.csv").sort_values("UNIQUE_ID")
 tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
-
+print(tag_mat.shape)
+print(latent_pat.shape)
 
 #testdata
 #iris=datasets.load_iris()
@@ -45,9 +46,9 @@ tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 
 print("Data is Loaded")
 
-def roc_comp(train_test,c):
+def roc_comp(train_test,c,gamma):
     #print("roc_comp with C parameter ="+str(clf.get_params()["C"]))
-    clf=svm.SVC(C=c,class_weight="balanced",probability=True,kernel="rbf",gamma=0.01)
+    clf=svm.SVC(C=c,class_weight="balanced",probability=True,kernel="rbf",gamma=gamma)
     probas_=clf.fit(latent_pat[train_test[0]],tag_mat[train_test[0]]).predict_proba(latent_pat[train_test[1]])
     fpr, tpr, thresholds = roc_curve(tag_mat[train_test[1]], probas_[:, 1])
     roc_auc = auc(fpr, tpr)
@@ -61,63 +62,64 @@ def init():
 
     print("initialization complete")
 
-def compute_AUC(C):
+def compute_AUC(C,gamma):
 
         for c in C:
-            cv=StratifiedKFold(n_splits=10)
-            #print("Baseline : "+str(1-np.sum(tag_mat)/tag_mat.shape[0]))
+            for g in gamma:
+                cv=StratifiedKFold(n_splits=10)
+                #print("Baseline : "+str(1-np.sum(tag_mat)/tag_mat.shape[0]))
 
-            #global clf
-            #clf=svm.SVC(C=c,class_weight="balanced",probability=True,kernel="linear")
+                #global clf
+                #clf=svm.SVC(C=c,class_weight="balanced",probability=True,kernel="linear")
 
 
-            mean_fpr=np.linspace(0,1,100)
+                mean_fpr=np.linspace(0,1,100)
 
-            print("Start New mp with parameter C = "+str(c))
-            pool=mp.Pool(processes=10)#, initializer=init)
-            results = pool.map(partial(roc_comp,c=c),cv.split(latent_pat,tag_mat))
-            print("Results dim for C = "+str(c)+" is "+str(len(results)))
-            pool.close()
-            pool.join()
+                print("Start New mp with parameter C = "+str(c))
+                pool=mp.Pool(processes=10)#, initializer=init)
+                results = pool.map(partial(roc_comp,c=c,gamma=g),cv.split(latent_pat,tag_mat))
+                print("Results dim for C = "+str(c)+" is "+str(len(results)))
+                pool.close()
+                pool.join()
 
-            tprs=[interp(mean_fpr,fpr,tpr) for fpr,tpr,roc_auc in results]
-            roc_aucs=[auc(fpr,tpr) for fpr,tpr,roc_auc in results]
+                tprs=[interp(mean_fpr,fpr,tpr) for fpr,tpr,roc_auc in results]
+                roc_aucs=[auc(fpr,tpr) for fpr,tpr,roc_auc in results]
 
-            plt.figure()
-            for fpr,tpr,roc_auc in results:
-                plt.plot(fpr,tpr,lw=1,alpha=0.3)
-            #plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
+                plt.figure()
+                for fpr,tpr,roc_auc in results:
+                    plt.plot(fpr,tpr,lw=1,alpha=0.3)
+                #plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
 
-                #tprs.append(interp(mean_fpr, fpr, tpr))
-                #tprs[-1][0] = 0.0
-                #roc_auc = auc(fpr, tpr)
-                #aucs.append(roc_auc)
-                #plt.plot(fpr, tpr, lw=1, alpha=0.3,label='ROC fold %d (AUC = %0.2f)' % (i, roc_auc))
-                #i+=1
+                    #tprs.append(interp(mean_fpr, fpr, tpr))
+                    #tprs[-1][0] = 0.0
+                    #roc_auc = auc(fpr, tpr)
+                    #aucs.append(roc_auc)
+                    #plt.plot(fpr, tpr, lw=1, alpha=0.3,label='ROC fold %d (AUC = %0.2f)' % (i, roc_auc))
+                    #i+=1
 
-            plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
+                plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',label='Luck', alpha=.8)
 
-            mean_tpr = np.mean(tprs, axis=0)
-            mean_tpr[-1] = 1.0
-            mean_auc = auc(mean_fpr, mean_tpr)
-            std_auc = np.std(roc_aucs)
-            plt.plot(mean_fpr, mean_tpr, color='b',label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),lw=2, alpha=.8)
-            print("Mean AUC for C="+str(c)+" is "+str(mean_auc))
+                mean_tpr = np.mean(tprs, axis=0)
+                mean_tpr[-1] = 1.0
+                mean_auc = auc(mean_fpr, mean_tpr)
+                std_auc = np.std(roc_aucs)
+                plt.plot(mean_fpr, mean_tpr, color='b',label=r'Mean ROC (AUC = %0.2f $\pm$ %0.2f)' % (mean_auc, std_auc),lw=2, alpha=.8)
+                print("Mean AUC for C="+str(c)+" and gamma="+str(g)+" is "+str(mean_auc))
 
-            std_tpr = np.std(tprs, axis=0)
-            tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
-            tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
-            plt.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,label=r'$\pm$ 1 std. dev.')
+                std_tpr = np.std(tprs, axis=0)
+                tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
+                tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
+                plt.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,label=r'$\pm$ 1 std. dev.')
 
-            plt.xlim([-0.05, 1.05])
-            plt.ylim([-0.05, 1.05])
-            plt.xlabel('False Positive Rate')
-            plt.ylabel('True Positive Rate')
-            plt.title('Receiver operating characteristic example')
-            plt.legend(loc="lower right")
-            print("Saving Figure for C = "+str(c))
-            plt.savefig(file_path+"AUC_SVM_C"+str(c).replace(".","_")+".pdf")
-            print("Done with thread C = "+str(c))
+                plt.xlim([-0.05, 1.05])
+                plt.ylim([-0.05, 1.05])
+                plt.xlabel('False Positive Rate')
+                plt.ylabel('True Positive Rate')
+                plt.title('Receiver operating characteristic example')
+                plt.legend(loc="lower right")
+                print("Saving Figure for C = "+str(c))
+                plt.savefig(file_path+"AUC_SVM_C"+str(c).replace(".","_")+".pdf")
+                print("Done with thread C = "+str(c))
         return(0)
     #return([mean_fpr,mean_tpr,std_tpr,c,mean_auc,std_auc])
 
@@ -132,11 +134,12 @@ class MyPool(PoolParent):
     Process=NoDaemonProcess
 
 
-C_vec=[0.01,0.1,1,10,100]
+C_vec=[0.1,1,10,100]
+gamma_Vec=[0.0001,0.01,1]
 #main_pool=MyPool(processes=3)
 #res=[main_pool.apply_async(compute_AUC,(c,)) for c in C_vec]
 #result_fin=[r.get() for r in res]
-compute_AUC(C_vec)
+compute_AUC(C_vec,gamma_Vec)
 print("Processing Finished")
 # for res_vec in result_fin:
 #     plt.figure()
