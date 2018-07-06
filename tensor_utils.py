@@ -64,19 +64,13 @@ class tensor_fact(nn.Module):
     def forward(self,idx_pat,idx_meas,idx_t):
         pred=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(self.cov_w_fixed[idx_t,:],self.beta_w))).sum(1)
         return(pred)
-    def forward_full(self,idx_pat,cov_u):
+    def forward_full(self,idx_pat):
         #cov_w=torch.tensor(range(0,101)).unsqueeze(1)#.double()
-        pred=torch.einsum('il,jkl->ijk',((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u),torch.einsum("il,jl->ijl",(self.meas_lat.weight,(self.time_lat.weight+torch.mm(self.cov_w_fixed,self.beta_w)))))))
+        pred=torch.einsum('il,jkl->ijk',((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u),torch.einsum("il,jl->ijl",(self.meas_lat.weight,(self.time_lat.weight+torch.mm(self.cov_w_fixed,self.beta_w)))))))
         #pred=((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u))*(self.meas_lat.weight)*(self.time_lat.weight+torch.mm(cov_w,self.beta_w))).sum(1)
         return(pred)
-    def forward_DL(self,idx_pat,idx_meas,idx_t,cov_u,cov_w):
-        #print("Type of patlat "+str(self.pat_lat(idx_pat).type()))
-        #print("Type of patlat "+str(self.meas_lat(idx_meas).type()))
-        #print("Type of patlat "+str(self.time_lat(idx_t).type()))
-        #print("Type of patlat "+str(cov_u.type()))
-        #print("Type of patlat "+str(cov_w.type()))
-        #merged_input=torch.cat((self.pat_lat(idx_pat),self.meas_lat(idx_meas),self.time_lat(idx_t),cov_u,cov_w),1)
-        merged_input=torch.cat((self.pat_lat(idx_pat),self.meas_lat(idx_meas),self.time_lat(idx_t),cov_u,cov_w),1)
+    def forward_DL(self,idx_pat,idx_meas,idx_t):
+        merged_input=torch.cat((self.pat_lat(idx_pat),self.meas_lat(idx_meas),self.time_lat(idx_t),self.covariates_u[idx_pat,:],self.cov_w_fixed[idx_t,:]),1)
         #print(merged_input.size())
         out=F.relu(self.layer_1(merged_input))
         out=F.relu(self.layer_2(out))
@@ -138,17 +132,19 @@ class TensorFactDataset_ByPat(Dataset):
         val_tens=torch.DoubleTensor(idx_mat[:,-1])
         sparse_data=torch.sparse.DoubleTensor(idx_tens.t(),val_tens)
         self.data_matrix=sparse_data.to_dense()
-        cov_values=[chr(i) for i in range(ord('A'),ord('A')+18)]
-        #covariates=self.lab_short.groupby("UNIQUE_ID").first()[cov_values]
-        #self.cov_u=torch.DoubleTensor(covariates.as_matrix())
-        self.cov_u=torch.tensor(pd.read_csv(file_path+"lab_covariates_val.csv").as_matrix()[:,1:]).to(torch.double)
+
+        self.cov_u=torch.tensor(pd.read_csv(file_path+"complete_covariates.csv").as_matrix()[:,1:]).to(torch.double)
         self.length=self.cov_u.size(0)
-       # print(self.cov_u.size())
-       # print(self.data_matrix.size())
-        self.tags=pd.read_csv(file_path+"death_tag_tensor.csv").as_matrix()[:,1]
-        self.test_idx=np.random.choice(self.length,size=int(0.2*self.length),replace=False) #0.2 validation rate
-        self.train_tags=self.tags
-        self.train_tags[self.test_idx]=np.nan
+        self.covu_num=self.cov_u.size(1)
+
+        self.pat_num=self.lab_short["UNIQUE_ID"].nunique()
+        self.meas_num=self.lab_short["LABEL_CODE"].nunique()
+
+        #Computations for the classification setting
+        #self.tags=pd.read_csv(file_path+"death_tag_tensor.csv").as_matrix()[:,1]
+        #self.test_idx=np.random.choice(self.length,size=int(0.2*self.length),replace=False) #0.2 validation rate
+        #self.train_tags=self.tags
+        #self.train_tags[self.test_idx]=np.nan
 
     def __len__(self):
         return self.length

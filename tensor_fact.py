@@ -146,12 +146,12 @@ def main():
 
             if opt.by_pat:
                 indexes=sampled_batch[0].to(torch.long).to(device)
-                cov_u=sampled_batch[2].to(device)
+                #cov_u=sampled_batch[2].to(device)
                 target=sampled_batch[1].to(device)
                 mask=target.ne(0)
                 target=torch.masked_select(target,mask)
                 optimizer.zero_grad()
-                preds=fwd_fun(indexes,cov_u)
+                preds=fwd_fun(indexes)
                 preds=torch.masked_select(preds,mask)
                 if opt.death_label:
                     lab_target=sampled_batch[3].to(device)
@@ -161,9 +161,6 @@ def main():
                     lab_preds=torch.masked_select(lab_preds,lab_mask)
             else:
                 indexes=sampled_batch[:,1:4].to(torch.long).to(device)
-                #print("Type of index : "+str(indexes.dtype))
-                #cov_u=sampled_batch[:,5:23].to(device)
-                #cov_w=sampled_batch[:,3].unsqueeze(1).to(device)
                 target=sampled_batch[:,-1].to(device)
 
                 optimizer.zero_grad()
@@ -208,19 +205,16 @@ def main():
                 for i_val,batch_val in enumerate(dataloader_val):
                     if opt.by_pat:
                         indexes=batch_val[0].to(torch.long).to(device)
-                        cov_u=batch_val[2].to(device)
+                        #cov_u=batch_val[2].to(device)
                         target=batch_val[1].to(device)
                         mask=target.ne(0)
                         target=torch.masked_select(target,mask)
                         optimizer.zero_grad()
-                        pred_val=fwd_fun(indexes,cov_u)
+                        pred_val=fwd_fun(indexes)
                         pred_val=torch.masked_select(pred_val,mask)
                     else:
                         indexes=batch_val[:,1:4].to(torch.long).to(device)
-                        #cov_u=batch_val[:,5:23].to(device)
-                        #cov_w=batch_val[:,3].unsqueeze(1).to(device)
                         target=batch_val[:,-1].to(device)
-                        #target_lab=batch_val[:,4].to(device)
                         pred_val=fwd_fun(indexes[:,0],indexes[:,1],indexes[:,2])
                     loss_val=criterion(pred_val,target)
                     print("Validation Loss :"+str(loss_val))
