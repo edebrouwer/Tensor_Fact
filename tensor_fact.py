@@ -85,10 +85,10 @@ def main():
         if opt.DL:
             raise ValueError("Deep Learning with data feeding by patient is not supported yet")
         elif opt.death_label:
-            train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor.csv") #Full dataset for the Training
+            train_dataset=TensorFactDataset_ByPat(csv_file_serie="complete_tensor.csv") #Full dataset for the Training
         else:
-            train_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_train"+suffix)
-            val_dataset=TensorFactDataset_ByPat(csv_file_serie="lab_short_tensor_val"+suffix)
+            train_dataset=TensorFactDataset_ByPat(csv_file_serie="complete_tensor_train"+suffix)
+            val_dataset=TensorFactDataset_ByPat(csv_file_serie="complete_tensor_val"+suffix)
 
         mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="by_pat",n_pat=train_dataset.length,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
         mod.double()
@@ -97,28 +97,28 @@ def main():
         fwd_fun=mod.forward_full
     else:
         if opt.DL:
-            train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
-            val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
+            train_dataset=TensorFactDataset(csv_file_serie="complete_tensor_train"+suffix)
+            val_dataset=TensorFactDataset(csv_file_serie="complete_tensor_val"+suffix)
             mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Deep",n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward_DL
         elif opt.death_label:
-            train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor.csv") #Full dataset for the Training
+            train_dataset=TensorFactDataset(csv_file_serie="complete_tensor.csv") #Full dataset for the Training
             mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Class",n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward
         elif opt.XT:
-            train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
-            val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
+            train_dataset=TensorFactDataset(csv_file_serie="complete_tensor_train"+suffix)
+            val_dataset=TensorFactDataset(csv_file_serie="complete_tensor_val"+suffix)
             mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="XT",n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward_XT
         else:
-            train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
-            val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
+            train_dataset=TensorFactDataset(csv_file_serie="complete_tensor_train"+suffix)
+            val_dataset=TensorFactDataset(csv_file_serie="complete_tensor_val"+suffix)
             mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Normal",n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)

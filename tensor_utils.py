@@ -149,4 +149,4 @@ class TensorFactDataset_ByPat(Dataset):
     def __len__(self):
         return self.length
     def __getitem__(self,idx):
-        return([idx,self.data_matrix[idx,:,:],self.cov_u[idx,:],self.train_tags[idx]])
+        return([idx,self.data_matrix[idx,:,:]])#,self.train_tags[idx]])
