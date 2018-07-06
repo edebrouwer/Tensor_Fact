@@ -99,27 +99,27 @@ def main():
         if opt.DL:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Deep",n_pat=train_dataset.pat_num,n_meas=train_data_set.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Deep",n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward_DL
         elif opt.death_label:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor.csv") #Full dataset for the Training
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Class",n_pat=train_dataset.pat_num,n_meas=train_data_set.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Class",n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward
         elif opt.XT:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="XT",n_pat=train_dataset.pat_num,n_meas=train_data_set.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="XT",n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward_XT
         else:
             train_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_train"+suffix)
             val_dataset=TensorFactDataset(csv_file_serie="lab_short_tensor_val"+suffix)
-            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Normal",n_pat=train_dataset.pat_num,n_meas=train_data_set.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
+            mod=tensor_fact(device=device,covariates=train_dataset.cov_u,mode="Normal",n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
             fwd_fun=mod.forward
