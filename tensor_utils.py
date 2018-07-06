@@ -9,43 +9,6 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
 
-class deep_tensor_fact(tensor_fact):
-    def __init__(self):
-        super(tensor_fact,self).__init__()
-        self.layer_1=nn.Linear(full_dim,50)
-        self.layer_2=nn.Linear(50,50)
-        self.layer_3=nn.Linear(50,20)
-        self.last_layer=nn.Linear(20,1)
-    def forward(self,idx_pat,idx_meas,idx_t):
-        merged_input=torch.cat((self.pat_lat(idx_pat),self.meas_lat(idx_meas),self.time_lat(idx_t),self.covariates_u[idx_pat,:],self.cov_w_fixed[idx_t,:]),1)
-        #print(merged_input.size())
-        out=F.relu(self.layer_1(merged_input))
-        out=F.relu(self.layer_2(out))
-        out=F.relu(self.layer_3(out))
-        out=self.last_layer(out).squeeze(1)
-        return(out)
-
-class XT_tensor_fact(tensor_fact):
-    def __init__(self):
-        super(tensor_fact,self).__init__()
-        self.layer_1=nn.Linear(l_dim,20)
-        self.layer_2=nn.Linear(20,20)
-        self.layer_3=nn.Linear(20,1)
-    def forward(self,idx_pat,idx_meas,idx_t):
-        latent=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(self.cov_w_fixed[idx_t,:],self.beta_w)))
-        out=F.relu(self.layer_1(latent))
-        out=F.relu(self.layer_2(out))
-        out=F.relu(self.layer_3(out)).squeeze(1)
-        return(out)
-
-class By_pat_tensor_fact(tensor_fact):
-    def __init__(self):
-        super(tensor_fact,self).__init__()
-    def forward(self,idx_pat):
-        #cov_w=torch.tensor(range(0,101)).unsqueeze(1)#.double()
-        pred=torch.einsum('il,jkl->ijk',((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u),torch.einsum("il,jl->ijl",(self.meas_lat.weight,(self.time_lat.weight+torch.mm(self.cov_w_fixed,self.beta_w)))))))
-        #pred=((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u))*(self.meas_lat.weight)*(self.time_lat.weight+torch.mm(cov_w,self.beta_w))).sum(1)
-        return(pred)
 
 
 class tensor_fact(nn.Module):
@@ -100,6 +63,47 @@ class tensor_fact(nn.Module):
     def compute_regul(self):
         regul=torch.trace(torch.exp(-torch.mm(torch.mm(torch.t(self.time_lat.weight),self.inv_Kernel),self.time_lat.weight)))
         return(regul)
+
+
+
+class deep_tensor_fact(tensor_fact):
+    def __init__(self):
+        super(tensor_fact,self).__init__()
+        self.layer_1=nn.Linear(full_dim,50)
+        self.layer_2=nn.Linear(50,50)
+        self.layer_3=nn.Linear(50,20)
+        self.last_layer=nn.Linear(20,1)
+    def forward(self,idx_pat,idx_meas,idx_t):
+        merged_input=torch.cat((self.pat_lat(idx_pat),self.meas_lat(idx_meas),self.time_lat(idx_t),self.covariates_u[idx_pat,:],self.cov_w_fixed[idx_t,:]),1)
+        #print(merged_input.size())
+        out=F.relu(self.layer_1(merged_input))
+        out=F.relu(self.layer_2(out))
+        out=F.relu(self.layer_3(out))
+        out=self.last_layer(out).squeeze(1)
+        return(out)
+
+class XT_tensor_fact(tensor_fact):
+    def __init__(self):
+        super(tensor_fact,self).__init__()
+        self.layer_1=nn.Linear(l_dim,20)
+        self.layer_2=nn.Linear(20,20)
+        self.layer_3=nn.Linear(20,1)
+    def forward(self,idx_pat,idx_meas,idx_t):
+        latent=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(self.cov_w_fixed[idx_t,:],self.beta_w)))
+        out=F.relu(self.layer_1(latent))
+        out=F.relu(self.layer_2(out))
+        out=F.relu(self.layer_3(out)).squeeze(1)
+        return(out)
+
+class By_pat_tensor_fact(tensor_fact):
+    def __init__(self):
+        super(tensor_fact,self).__init__()
+    def forward(self,idx_pat):
+        #cov_w=torch.tensor(range(0,101)).unsqueeze(1)#.double()
+        pred=torch.einsum('il,jkl->ijk',((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u),torch.einsum("il,jl->ijl",(self.meas_lat.weight,(self.time_lat.weight+torch.mm(self.cov_w_fixed,self.beta_w)))))))
+        #pred=((self.pat_lat(idx_pat)+torch.mm(cov_u,self.beta_u))*(self.meas_lat.weight)*(self.time_lat.weight+torch.mm(cov_w,self.beta_w))).sum(1)
+        return(pred)
+
 
 
 class TensorFactDataset(Dataset):
