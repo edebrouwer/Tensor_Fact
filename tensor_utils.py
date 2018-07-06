@@ -9,7 +9,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
 
-
+import os
 
 class tensor_fact(nn.Module):
     def __init__(self,device,covariates,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,l_kernel=3,sig2_kernel=1):
@@ -242,4 +242,4 @@ def mod_select(opt):
     if not opt.death_label:
         dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
 
-    return(dataloader,dataloader_val,mod)
+    return(dataloader,dataloader_val,mod,device)

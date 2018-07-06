@@ -9,7 +9,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
 
-from tensor_utils import tensor_fact,TensorFactDataset, TensorFactDataset_ByPat
+from tensor_utils import tensor_fact,TensorFactDataset, TensorFactDataset_ByPat, mod_select 
 
 import os
 import time
@@ -42,7 +42,7 @@ def main():
 
     opt=parser.parse_args()
 
-    dataloader, dataloader_val, mod = tensor_utils.mode_select(opt)
+    dataloader, dataloader_val, mod, device = mod_select(opt)
 
     train_hist=np.array([])
     val_hist=np.array([])
