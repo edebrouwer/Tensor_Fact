@@ -3,7 +3,7 @@ import pandas as pd
 import scipy.sparse
 import macau
 import itertools
-import macau_mimic
+
 
 num_latents=2
 
