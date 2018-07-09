@@ -163,13 +163,14 @@ class TensorFactDataset_ByPat(Dataset):
     def __getitem__(self,idx):
         return([idx,self.data_matrix[idx,:,:]])#,self.train_tags[idx]])
 
-def mod_select(opt,tensor_path="complete_tensor",cov_path="complete_covariates"):
+def mod_select(opt,tensor_path="complete_tensor",cov_path="complete_covariates",extra_tag=""):
 
     N_t=97 # NUmber of time steps
 
     str_dir="./trained_models/"
     for key in vars(opt):
         str_dir+=str(key)+str(vars(opt)[key])+"_"
+    str_dir+=extra_tag
     str_dir+="/"
 
     #Check if output directory exits, otherwise, create it.
