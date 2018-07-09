@@ -68,7 +68,7 @@ class tensor_fact(nn.Module):
 
 class deep_tensor_fact(tensor_fact):
     def __init__(self,device,covariates,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,l_kernel=3,sig2_kernel=1):
-        super(tensor_fact,self).__init__(self,device,covariates,n_pat,n_meas,n_t,l_dim,n_u,n_w,l_kernel,sig2_kernel)
+        super(deep_tensor_fact,self).__init__(device=device,covariates=covariates,n_pat=n_pat,n_meas=n_meas,n_t=n_t,l_dim=l_dim,n_u=n_u,n_w=n_w,l_kernel=l_kernel,sig2_kernel=sig2_kernel)
         self.layer_1=nn.Linear(full_dim,50)
         self.layer_2=nn.Linear(50,50)
         self.layer_3=nn.Linear(50,20)
@@ -84,7 +84,7 @@ class deep_tensor_fact(tensor_fact):
 
 class XT_tensor_fact(tensor_fact):
     def __init__(self,device,covariates,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,l_kernel=3,sig2_kernel=1):
-        super(tensor_fact,self).__init__(self,device,covariates,n_pat,n_meas,n_t,l_dim,n_u,n_w,l_kernel,sig2_kernel)
+        super(XT_tensor_fact,self).__init__(device=device,covariates=covariates,n_pat=n_pat,n_meas=n_meas,n_t=n_t,l_dim=l_dim,n_u=n_u,n_w=n_w,l_kernel=l_kernel,sig2_kernel=sig2_kernel)
         self.layer_1=nn.Linear(l_dim,20)
         self.layer_2=nn.Linear(20,20)
         self.layer_3=nn.Linear(20,1)
@@ -97,7 +97,7 @@ class XT_tensor_fact(tensor_fact):
 
 class By_pat_tensor_fact(tensor_fact):
     def __init__(self,device,covariates,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,l_kernel=3,sig2_kernel=1):
-        super(tensor_fact,self).__init__(self,device,covariates,n_pat,n_meas,n_t,l_dim,n_u,n_w,l_kernel,sig2_kernel)
+        super(By_pat_tensor_fact,self).__init__(device=device,covariates=covariates,n_pat=n_pat,n_meas=n_meas,n_t=n_t,l_dim=l_dim,n_u=n_u,n_w=n_w,l_kernel=l_kernel,sig2_kernel=sig2_kernel)
     def forward(self,idx_pat):
         #cov_w=torch.tensor(range(0,101)).unsqueeze(1)#.double()
         pred=torch.einsum('il,jkl->ijk',((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u),torch.einsum("il,jl->ijl",(self.meas_lat.weight,(self.time_lat.weight+torch.mm(self.cov_w_fixed,self.beta_w)))))))
@@ -242,4 +242,4 @@ def mod_select(opt):
     if not opt.death_label:
         dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
 
-    return(dataloader,dataloader_val,mod,device)
+    return(dataloader,dataloader_val,mod,device,str_dir)

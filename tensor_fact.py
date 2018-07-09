@@ -42,7 +42,7 @@ def main():
 
     opt=parser.parse_args()
 
-    dataloader, dataloader_val, mod, device = mod_select(opt)
+    dataloader, dataloader_val, mod, device,str_dir = mod_select(opt)
 
     train_hist=np.array([])
     val_hist=np.array([])
