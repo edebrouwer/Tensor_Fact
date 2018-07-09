@@ -9,7 +9,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
 
-from tensor_utils import tensor_fact,TensorFactDataset, TensorFactDataset_ByPat, mod_select 
+from tensor_utils import tensor_fact,TensorFactDataset, TensorFactDataset_ByPat, mod_select
 
 import os
 import time
@@ -38,11 +38,7 @@ parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu 
 #parser.add_argument('--outfile',default="./",type=str,help="Path to save the models and outpus")
 
 
-def main():
-
-    opt=parser.parse_args()
-
-    dataloader, dataloader_val, mod, device,str_dir = mod_select(opt)
+def train_model(dataloader,dataloader_val,mod,device,str_dir,opt):
 
     train_hist=np.array([])
     val_hist=np.array([])
@@ -149,6 +145,16 @@ def main():
     min_train=train_hist[np.where(val_hist==min(val_hist))]
     print("Training Error at lowest validation : "+str(min_train))
     print("Lowest Validation Error : "+str(min(val_hist)))
+
+def main():
+
+    opt=parser.parse_args()
+
+    dataloader, dataloader_val, mod, device,str_dir = mod_select(opt)
+
+
+    train_model(dataloader,dataloader_val,mod,device,str_dir,opt)
+
 
 if __name__=="__main__":
     main()

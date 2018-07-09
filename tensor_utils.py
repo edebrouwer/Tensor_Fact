@@ -107,7 +107,7 @@ class By_pat_tensor_fact(tensor_fact):
 
 
 class TensorFactDataset(Dataset):
-    def __init__(self,csv_file_serie="lab_short_tensor.csv",file_path="~/Data/MIMIC/",transform=None):
+    def __init__(self,csv_file_serie="lab_short_tensor.csv",file_path="~/Data/MIMIC/",cov_path="complete_covariates",transform=None):
         self.lab_short=pd.read_csv(file_path+csv_file_serie)
         self.length=len(self.lab_short.index)
         self.pat_num=self.lab_short["UNIQUE_ID"].nunique()
@@ -128,7 +128,7 @@ class TensorFactDataset(Dataset):
         #print(self.test_covariates.size())
         #print(self.test_labels.size())
 
-        self.cov_u=torch.tensor(pd.read_csv(file_path+"complete_covariates.csv").as_matrix()[:,1:]).to(torch.double)
+        self.cov_u=torch.tensor(pd.read_csv(file_path+cov_path+".csv").as_matrix()[:,1:]).to(torch.double)
         self.covu_num=self.cov_u.size(1)
 
     def __len__(self):
@@ -137,7 +137,7 @@ class TensorFactDataset(Dataset):
         return(self.tensor_mat[idx,:])
 
 class TensorFactDataset_ByPat(Dataset):
-    def __init__(self,csv_file_serie="lab_short_tensor.csv",file_path="~/Data/MIMIC/",transform=None):
+    def __init__(self,csv_file_serie="lab_short_tensor.csv",file_path="~/Data/MIMIC/",cov_path="complete_covariates",transform=None):
         self.lab_short=pd.read_csv(file_path+csv_file_serie)
         idx_mat=self.lab_short[["UNIQUE_ID","LABEL_CODE","TIME_STAMP","VALUENORM"]].as_matrix()
         idx_tens=torch.LongTensor(idx_mat[:,:-1])
@@ -145,7 +145,7 @@ class TensorFactDataset_ByPat(Dataset):
         sparse_data=torch.sparse.DoubleTensor(idx_tens.t(),val_tens)
         self.data_matrix=sparse_data.to_dense()
 
-        self.cov_u=torch.tensor(pd.read_csv(file_path+"complete_covariates.csv").as_matrix()[:,1:]).to(torch.double)
+        self.cov_u=torch.tensor(pd.read_csv(file_path+cov_path+".csv").as_matrix()[:,1:]).to(torch.double)
         self.length=self.cov_u.size(0)
         self.covu_num=self.cov_u.size(1)
 
@@ -163,7 +163,7 @@ class TensorFactDataset_ByPat(Dataset):
     def __getitem__(self,idx):
         return([idx,self.data_matrix[idx,:,:]])#,self.train_tags[idx]])
 
-def mod_select(opt):
+def mod_select(opt,tensor_path="complete_tensor",cov_path="complete_covariates"):
 
     N_t=97 # NUmber of time steps
 
@@ -206,33 +206,33 @@ def mod_select(opt):
         elif opt.death_label:
             train_dataset=TensorFactDataset_ByPat(csv_file_serie="complete_tensor.csv") #Full dataset for the Training
         else:
-            train_dataset=TensorFactDataset_ByPat(csv_file_serie="complete_tensor_train"+suffix)
-            val_dataset=TensorFactDataset_ByPat(csv_file_serie="complete_tensor_val"+suffix)
+            train_dataset=TensorFactDataset_ByPat(csv_file_serie=tensor_path+"_train"+suffix,cov_path=cov_path)
+            val_dataset=TensorFactDataset_ByPat(csv_file_serie=tensor_path+"_val"+suffix,cov_path=cov_path)
 
         mod=By_pat_tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.length,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
         mod.double()
         mod.to(device)
     else:
         if opt.DL:
-            train_dataset=TensorFactDataset(csv_file_serie="complete_tensor_train"+suffix)
-            val_dataset=TensorFactDataset(csv_file_serie="complete_tensor_val"+suffix)
+            train_dataset=TensorFactDataset(csv_file_serie=tensor_path+"_train"+suffix,cov_path=cov_path)
+            val_dataset=TensorFactDataset(csv_file_serie=tensor_path+"_val"+suffix,cov_path=cov_path)
             mod=deep_tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
         elif opt.death_label:
-            train_dataset=TensorFactDataset(csv_file_serie="complete_tensor.csv") #Full dataset for the Training
+            train_dataset=TensorFactDataset(csv_file_serie="complete_tensor.csv",cov_path=cov_path) #Full dataset for the Training
             mod=tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
         elif opt.XT:
-            train_dataset=TensorFactDataset(csv_file_serie="complete_tensor_train"+suffix)
-            val_dataset=TensorFactDataset(csv_file_serie="complete_tensor_val"+suffix)
+            train_dataset=TensorFactDataset(csv_file_serie=tensor_path+"_train"+suffix,cov_path=cov_path)
+            val_dataset=TensorFactDataset(csv_file_serie=tensor_path+"_val"+suffix,cov_path=cov_path)
             mod=XT_tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
         else:
-            train_dataset=TensorFactDataset(csv_file_serie="complete_tensor_train"+suffix)
-            val_dataset=TensorFactDataset(csv_file_serie="complete_tensor_val"+suffix)
+            train_dataset=TensorFactDataset(csv_file_serie=tensor_path+"_train"+suffix,cov_path=cov_path)
+            val_dataset=TensorFactDataset(csv_file_serie=tensor_path+"_val"+suffix,cov_path=cov_path)
             mod=tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
