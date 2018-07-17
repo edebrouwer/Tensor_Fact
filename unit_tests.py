@@ -3,6 +3,7 @@ import pandas as pd
 import scipy.sparse
 import macau
 import itertools
+import argparse
 
 from tensor_utils import tensor_fact,TensorFactDataset, TensorFactDataset_ByPat, mod_select
 from tensor_fact import train_model
@@ -31,7 +32,7 @@ parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu 
 #Savings args
 #parser.add_argument('--outfile',default="./",type=str,help="Path to save the models and outpus")
 
-def macau_test:
+def macau_test():
     num_latents=2
     n_samples=800
 
@@ -104,7 +105,7 @@ def macau_test:
     print("True Latents")
     print(C)
 
-def pytorch_test:
+def pytorch_test():
     num_latents=2
 
     save_prefix="macau_unit_test"
@@ -116,21 +117,32 @@ def pytorch_test:
     idx = list( itertools.product(np.arange(A.shape[0]),
                                   np.arange(B.shape[0]),
                                   np.arange(C.shape[0])) )
-    df  = pd.DataFrame( np.asarray(idx), columns=["UNIQUE_ID", "B", "C"])
+
+    df  = pd.DataFrame( np.asarray(idx), columns=["UNIQUE_ID", "LABEL_CODE", "TIME_STAMP"])
 
 
-    df["value"] = np.array([ np.sum(A[i[0], :] * B[i[1], :] * C[i[2], :]) for i in idx ])
+
+    df["VALUENORM"] = np.array([ np.sum(A[i[0], :] * B[i[1], :] * C[i[2], :]) for i in idx ])
+
+    msk=np.random.randn(len(df))<0.8
+    df_train=df[msk]
+    df_val=df[~msk]
 
     cov=np.random.randn(15,4)
     cov_df=pd.DataFrame(cov)
 
-    df.to_csv("Unit_tests_tensor.csv")
-    cov_df.to_csv("Unit_test_cov.csv")
+    df_train.to_csv("~/Data/MIMIC/Unit_tests_tensor_train.csv")
+    df_val.to_csv("~/Data/MIMIC/Unit_tests_tensor_val.csv")
+    cov_df.to_csv("~/Data/MIMIC/Unit_test_cov.csv")
+    print("saved models")
 
-    dataloader, dataloader_val, mod, device,str_dir = mod_select(opt,tensor_path="Unit_tests_tensor",cov_path="Unit_test_cov")
+    opt=parser.parse_args()
+
+    dataloader, dataloader_val, mod, device,str_dir = mod_select(opt,tensor_path="Unit_tests_tensor",cov_path="Unit_test_cov",extra_tag="TEST")
+
 
     train_model(dataloader,dataloader_val,mod,device,str_dir,opt)
 
 
-if __name__=="main":
+if __name__=="__main__":
     pytorch_test()

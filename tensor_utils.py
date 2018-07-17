@@ -69,6 +69,7 @@ class tensor_fact(nn.Module):
 class deep_tensor_fact(tensor_fact):
     def __init__(self,device,covariates,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,l_kernel=3,sig2_kernel=1):
         super(deep_tensor_fact,self).__init__(device=device,covariates=covariates,n_pat=n_pat,n_meas=n_meas,n_t=n_t,l_dim=l_dim,n_u=n_u,n_w=n_w,l_kernel=l_kernel,sig2_kernel=sig2_kernel)
+        full_dim=3*l_dim+n_u+n_w
         self.layer_1=nn.Linear(full_dim,50)
         self.layer_2=nn.Linear(50,50)
         self.layer_3=nn.Linear(50,20)
@@ -91,8 +92,8 @@ class XT_tensor_fact(tensor_fact):
     def forward(self,idx_pat,idx_meas,idx_t):
         latent=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(self.cov_w_fixed[idx_t,:],self.beta_w)))
         out=F.relu(self.layer_1(latent))
-        out=F.relu(self.layer_2(out))
-        out=F.relu(self.layer_3(out)).squeeze(1)
+        #out=F.relu(self.layer_2(out))
+        out=self.layer_3(out).squeeze(1)
         return(out)
 
 class By_pat_tensor_fact(tensor_fact):
@@ -163,13 +164,14 @@ class TensorFactDataset_ByPat(Dataset):
     def __getitem__(self,idx):
         return([idx,self.data_matrix[idx,:,:]])#,self.train_tags[idx]])
 
-def mod_select(opt,tensor_path="complete_tensor",cov_path="complete_covariates"):
+def mod_select(opt,tensor_path="complete_tensor",cov_path="complete_covariates",extra_tag=""):
 
     N_t=97 # NUmber of time steps
 
     str_dir="./trained_models/"
     for key in vars(opt):
         str_dir+=str(key)+str(vars(opt)[key])+"_"
+    str_dir+=extra_tag
     str_dir+="/"
 
     #Check if output directory exits, otherwise, create it.
