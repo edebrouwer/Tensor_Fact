@@ -1,4 +1,4 @@
-
+import pandas as pd
 import torch
 import numpy as np
 import sys
@@ -24,25 +24,28 @@ def create_data(file_path):
     tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
     print(tag_mat.shape)
     print(latent_pat.shape)
-
+    return latent_pat,tag_mat
 
 class MLP_class_mod(nn.Module):
     def __init__(self,input_dim):
         super(MLP_class_mod,self).__init__()
-        self.layer_1=nn.Linear(input_dim,20)
-        self.layer_2=nn.Linear(20,20)
+        self.layer_1=nn.Linear(input_dim,50)
+        self.layer_1bis=nn.Linear(50,50)
+        self.layer_2=nn.Linear(50,20)
         self.layer_3=nn.Linear(20,1)
     def fwd(self,x):
         out=F.relu(self.layer_1(x))
+        out=F.relu(self.layer_1bis(out))
         out=F.relu(self.layer_2(out))
-        out=self.layer_3(out).squeeze(1)
+        out=F.sigmoid(self.layer_3(out)).squeeze(1)
+        return(out)
 
 class latent_dataset(Dataset):
     def __init__(self,latents,tags):
         self.latents=latents
-        self.tags=tags
+        self.tags=tags.astype(float)
     def __len__(self):
-        return(self.latents.size(0))
+        return(self.latents.shape[0])
     def __getitem__(self,idx):
         return([self.latents[idx,:],self.tags[idx]])
 
@@ -50,20 +53,26 @@ def train_mod(model,dataloader):
     optimizer=torch.optim.Adam(model.parameters(), lr=0.01,weight_decay=0)
     criterion = nn.BCELoss()#
 
-    epochs_num=10
-    for epoch in epochs_num:
+    epochs_num=100
+    for epoch in range(epochs_num):
+        total_loss=0
         for i_batch,sampled_batch in enumerate(dataloader):
             optimizer.zero_grad()
             pred=model.fwd(sampled_batch[0])
             loss=criterion(pred,sampled_batch[1])
             loss.backward()
             optimizer.step()
+            total_loss+=loss
+        print("Loss for epoch "+str(epoch)+" = "+str(total_loss/(i_batch+1)))
     return(model)
 
 
 if __name__=="__main__":
     file_path=sys.argv[1:][0]
     latent_pat,tag_mat=create_data(file_path)
-    model=MLP_class_mod(input_dim=laten_pat.size(1))
-    dataloader = DataLoader(latent_dataset, batch_size=1000,shuffle=True,num_workers=2)
+    model=MLP_class_mod(input_dim=latent_pat.shape[1]).double()
+    latent_data=latent_dataset(latent_pat,tag_mat)
+    dataloader = DataLoader(latent_data, batch_size=10000,shuffle=True,num_workers=2)
     model=train_mod(model,dataloader)
+    
+
