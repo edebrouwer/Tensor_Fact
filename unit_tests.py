@@ -116,7 +116,7 @@ def pytorch_test:
     idx = list( itertools.product(np.arange(A.shape[0]),
                                   np.arange(B.shape[0]),
                                   np.arange(C.shape[0])) )
-    df  = pd.DataFrame( np.asarray(idx), columns=["A", "B", "C"])
+    df  = pd.DataFrame( np.asarray(idx), columns=["UNIQUE_ID", "B", "C"])
 
 
     df["value"] = np.array([ np.sum(A[i[0], :] * B[i[1], :] * C[i[2], :]) for i in idx ])
