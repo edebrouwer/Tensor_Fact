@@ -26,12 +26,12 @@ if "macau" in file_path:
     latent_pat=np.load(file_path+"mean_pat_latent.npy").T
 else:
     latent_pat=torch.load(file_path+"best_model.pt")["pat_lat.weight"].cpu().numpy() #latents without covariates
-print(latent_pat.shape)
-    #covariates=pd.read_csv("~/Data/MIMIC/lab_covariates_val.csv").as_matrix() #covariates
-    #beta_u=torch.load(file_path+"current_model.pt")["beta_u"].numpy() #Coeffs for covariates
-    #latent_pat=np.dot(covariates[:,1:],beta_u)
+#print(latent_pat.shape)
+    covariates=pd.read_csv("~/Data/MIMIC/complete_covariates.csv").as_matrix() #covariates
+    beta_u=torch.load(file_path+"best_model.pt")["beta_u"].cpu().numpy() #Coeffs for covariates
+    latent_pat=np.dot(covariates[:,1:],beta_u)
 
-tags=pd.read_csv("~/Data/MIMIC/death_tags.csv").sort_values("UNIQUE_ID")
+tags=pd.read_csv("~/Data/MIMIC/complete_death_tags.csv").sort_values("UNIQUE_ID")
 tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 print(tag_mat.shape)
 print(latent_pat.shape)
