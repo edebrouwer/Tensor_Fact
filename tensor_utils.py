@@ -22,9 +22,9 @@ class tensor_fact(nn.Module):
         self.n_u=n_u
         self.n_w=n_w
         self.pat_lat=nn.Embedding(n_pat,l_dim) #sparse gradients ?
-        self.pat_lat.weight=nn.Parameter(0.05*torch.randn([n_pat,l_dim]))
+        self.pat_lat.weight=nn.Parameter(0.01*torch.randn([n_pat,l_dim]))
         self.meas_lat=nn.Embedding(n_meas,l_dim)
-        self.meas_lat.weight=nn.Parameter(0.05*torch.randn([n_meas,l_dim]))
+        self.meas_lat.weight=nn.Parameter(0.01*torch.randn([n_meas,l_dim]))
         self.time_lat=nn.Embedding(n_t,l_dim)#.double()
         self.time_lat.weight=nn.Parameter(0.005*torch.randn([n_t,l_dim]))
         self.beta_u=nn.Parameter(torch.randn([n_u,l_dim],requires_grad=True))#.double())
@@ -92,7 +92,7 @@ class XT_tensor_fact(tensor_fact):
     def forward(self,idx_pat,idx_meas,idx_t):
         latent=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(self.cov_w_fixed[idx_t,:],self.beta_w)))
         out=F.relu(self.layer_1(latent))
-        #out=F.relu(self.layer_2(out))
+        out=F.relu(self.layer_2(out))
         out=self.layer_3(out).squeeze(1)
         return(out)
 
