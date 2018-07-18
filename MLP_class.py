@@ -3,11 +3,15 @@ import torch
 import numpy as np
 import sys
 
+from sklearn.model_selection import StratifiedKFold
+
 import torch.nn as nn
 
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
+
+from sklearn.metrics import roc_auc_score
 
 
 def create_data(file_path):
@@ -67,12 +71,23 @@ def train_mod(model,dataloader):
     return(model)
 
 
+cv=StratifiedKFold(n_splits=10)
+cv.split(latent_pat,tag_mat)
+
+
 if __name__=="__main__":
     file_path=sys.argv[1:][0]
     latent_pat,tag_mat=create_data(file_path)
-    model=MLP_class_mod(input_dim=latent_pat.shape[1]).double()
-    latent_data=latent_dataset(latent_pat,tag_mat)
-    dataloader = DataLoader(latent_data, batch_size=10000,shuffle=True,num_workers=2)
-    model=train_mod(model,dataloader)
-    
+    cv=StratifiedKFold(n_splits=10)
+    cv.split(latent_pat,tag_mat)
 
+    for index_train,index_test in cv.split(latent_pat):
+
+        model=MLP_class_mod(input_dim=len(index_train)).double()
+        latent_data=latent_dataset(latent_pat[index_train,:],tag_mat[index_train])
+        dataloader = DataLoader(latent_data, batch_size=10000,shuffle=True,num_workers=2)
+        model=train_mod(model,dataloader)
+
+        pred_val=model.fwd(latent_pat[index_test,:])
+        auc_roc=roc_auc_score(tag_mat[index_test],pred_val)
+        print(auc_roc)
