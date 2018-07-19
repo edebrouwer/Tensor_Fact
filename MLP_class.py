@@ -13,12 +13,14 @@ import torch.nn.functional as F
 
 from sklearn.metrics import roc_auc_score
 
+import progressbar
 
 def create_data(file_path,sample_tag=False):
     if "macau" in file_path:
         if sample_tag:
+            N_samples=5
             N_dim=file_path[-3:-1]
-            latent_pat=create_macau_sample_data(N_dim,file_path+N_dim+"_macau")
+            latent_pat=create_macau_sample_data(N_dim=int(N_dim),N_samples=N_samples,file_path=file_path)
         else:
             latent_pat=np.load(file_path+"mean_pat_latent.npy").T
     else:
@@ -30,17 +32,20 @@ def create_data(file_path,sample_tag=False):
 
     tags=pd.read_csv("~/Data/MIMIC/complete_death_tags.csv").sort_values("UNIQUE_ID")
     tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
+    if sample_tag: #repeat the chain N_samples times
+        tag_mat=np.repeat(tag_mat,N_samples+1)
     print(tag_mat.shape)
     print(latent_pat.shape)
     return latent_pat,tag_mat
 
-def create_macau_sample_data(N_dim,dir_path):
+def create_macau_sample_data(N_dim,N_samples,file_path):
     #container=np.empty((N_pat*N_samples,N_dim,))
-    container=np.zeros((1,N_dim))
-    for n in range(1,N_samples+1):
+    container=np.load(file_path+"mean_pat_latent.npy").T #We keep the main in the samples
+    print("Loading samples")
+    for n in progressbar.progressbar(range(1,N_samples+1)):
         #container[((n-1)*N_pat):(n*N_pat),:]=np.loadtxt(dir_path+"-sample%d-U1-latents.csv"%n,delimiter=",").T
-        container=np.append(container,np.loadtxt(dir_path+"-sample%d-U1-latents.csv"%n,delimiter=",").T)
-    return(container[1:,:])
+        container=np.append(container,np.loadtxt(file_path+str(N_dim)+"_macau"+"-sample%d-U1-latents.csv"%n,delimiter=",").T,axis=0)
+    return(container)
 
 class MLP_class_mod(nn.Module):
     def __init__(self,input_dim):
