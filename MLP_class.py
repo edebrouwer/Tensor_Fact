@@ -14,9 +14,13 @@ import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score
 
 
-def create_data(file_path):
+def create_data(file_path,sample_tag=False):
     if "macau" in file_path:
-        latent_pat=np.load(file_path+"mean_pat_latent.npy").T
+        if sample_tag:
+            N_dim=file_path[-3:-1]
+            latent_pat=create_macau_sample_data(N_dim,file_path+N_dim+"_macau")
+        else:
+            latent_pat=np.load(file_path+"mean_pat_latent.npy").T
     else:
         latent_pat=torch.load(file_path+"best_model.pt")["pat_lat.weight"].cpu().numpy() #latents without covariates
     #print(latent_pat.shape)
@@ -29,6 +33,14 @@ def create_data(file_path):
     print(tag_mat.shape)
     print(latent_pat.shape)
     return latent_pat,tag_mat
+
+def create_macau_sample_data(N_dim,dir_path):
+    #container=np.empty((N_pat*N_samples,N_dim,))
+    container=np.zeros((1,N_dim))
+    for n in range(1,N_samples+1):
+        #container[((n-1)*N_pat):(n*N_pat),:]=np.loadtxt(dir_path+"-sample%d-U1-latents.csv"%n,delimiter=",").T
+        container=np.append(container,np.loadtxt(dir_path+"-sample%d-U1-latents.csv"%n,delimiter=",").T)
+    return(container[1:,:])
 
 class MLP_class_mod(nn.Module):
     def __init__(self,input_dim):
@@ -67,7 +79,7 @@ def train_mod(model,dataloader,dataloader_val):
             loss.backward()
             optimizer.step()
             total_loss+=loss
-    
+
         with torch.no_grad():
             for i_batch_val,sampled_batch in enumerate(dataloader_val):
                 val_pred=model.fwd(sampled_batch[0])
@@ -80,7 +92,7 @@ def train_mod(model,dataloader,dataloader_val):
 if __name__=="__main__":
     n_splits=10
     file_path=sys.argv[1:][0]
-    latent_pat,tag_mat=create_data(file_path)
+    latent_pat,tag_mat=create_data(file_path,sample_tag=True)
     cv=StratifiedKFold(n_splits=n_splits)
     cv.split(latent_pat,tag_mat)
 
@@ -93,7 +105,7 @@ if __name__=="__main__":
         dataloader = DataLoader(latent_data, batch_size=len(index_train),shuffle=True,num_workers=2)
         latent_data_val=latent_dataset(latent_pat[index_test,:],tag_mat[index_test])
         dataloader_val = DataLoader(latent_data_val, batch_size=len(index_test),shuffle=True,num_workers=2)
-        
+
         model=train_mod(model,dataloader,dataloader_val)
 
         val_data=torch.tensor((latent_pat[index_test,:]))
