@@ -18,31 +18,34 @@ import progressbar
 def create_data(file_path,sample_tag=False):
     if "macau" in file_path:
         if sample_tag:
-            N_samples=5
+            N_samples=5 #5 in total, with the mean included.
             N_dim=file_path[-3:-1]
             latent_pat=create_macau_sample_data(N_dim=int(N_dim),N_samples=N_samples,file_path=file_path)
         else:
             latent_pat=np.load(file_path+"mean_pat_latent.npy").T
+            N_samples=1
     else:
         latent_pat=torch.load(file_path+"best_model.pt")["pat_lat.weight"].cpu().numpy() #latents without covariates
     #print(latent_pat.shape)
         covariates=pd.read_csv("~/Data/MIMIC/complete_covariates.csv").as_matrix() #covariates
         beta_u=torch.load(file_path+"best_model.pt")["beta_u"].cpu().numpy() #Coeffs for covariates
         latent_pat=np.dot(covariates[:,1:],beta_u)
+        N_samples=1
 
     tags=pd.read_csv("~/Data/MIMIC/complete_death_tags.csv").sort_values("UNIQUE_ID")
     tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
+    N_pat=tag_mat.shape[0]
     if sample_tag: #repeat the chain N_samples times
         tag_mat=np.repeat(tag_mat,N_samples+1)
     print(tag_mat.shape)
     print(latent_pat.shape)
-    return latent_pat,tag_mat
+    return latent_pat,tag_mat,N_pat,N_samples
 
 def create_macau_sample_data(N_dim,N_samples,file_path):
     #container=np.empty((N_pat*N_samples,N_dim,))
     container=np.load(file_path+"mean_pat_latent.npy").T #We keep the main in the samples
     print("Loading samples")
-    for n in progressbar.progressbar(range(1,N_samples+1)):
+    for n in progressbar.progressbar(range(1,N_samples)):
         #container[((n-1)*N_pat):(n*N_pat),:]=np.loadtxt(dir_path+"-sample%d-U1-latents.csv"%n,delimiter=",").T
         container=np.append(container,np.loadtxt(file_path+str(N_dim)+"_macau"+"-sample%d-U1-latents.csv"%n,delimiter=",").T,axis=0)
     return(container)
@@ -92,20 +95,30 @@ def train_mod(model,dataloader,dataloader_val):
         print("Loss for epoch "+str(epoch)+" = "+str(total_loss/(i_batch+1))+" with validation loss = "+str(val_loss))
     return(model)
 
+def index_with_samples(index_original,N_samp,N_pat):
+    index_np=np.array(index_original)
+    index_full=index_original
+    for i in range(1,(N_samp)):
+        index_full+=list(index_np+i*N_pat)
+    return(index_full)
 
 
 if __name__=="__main__":
     n_splits=10
+    sample_tag=True
     file_path=sys.argv[1:][0]
-    latent_pat,tag_mat=create_data(file_path,sample_tag=True)
+    latent_pat,tag_mat,N_pat,N_samp=create_data(file_path,sample_tag=sample_tag)
     cv=StratifiedKFold(n_splits=n_splits)
     cv.split(latent_pat,tag_mat)
 
     auc_mean=0
-    for index_train,index_test in cv.split(latent_pat,tag_mat):
+    for index_train,index_test in cv.split(latent_pat[:N_pat,:],tag_mat[:N_pat]):
 
         model=MLP_class_mod(input_dim=latent_pat.shape[1]).double()
         print(len(index_train))
+        if sample_tag:
+            index_train=index_with_samples(index_train,N_samp,N_pat)
+            index_test=index_with_samples(index_test,N_samp,N_pat)
         latent_data=latent_dataset(latent_pat[index_train,:],tag_mat[index_train])
         dataloader = DataLoader(latent_data, batch_size=len(index_train),shuffle=True,num_workers=2)
         latent_data_val=latent_dataset(latent_pat[index_test,:],tag_mat[index_test])
