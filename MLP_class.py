@@ -33,9 +33,9 @@ def create_data(file_path):
 class MLP_class_mod(nn.Module):
     def __init__(self,input_dim):
         super(MLP_class_mod,self).__init__()
-        self.layer_1=nn.Linear(input_dim,50)
-        self.layer_1bis=nn.Linear(50,50)
-        self.layer_2=nn.Linear(50,20)
+        self.layer_1=nn.Linear(input_dim,70)
+        self.layer_1bis=nn.Linear(70,70)
+        self.layer_2=nn.Linear(70,20)
         self.layer_3=nn.Linear(20,1)
     def fwd(self,x):
         out=F.relu(self.layer_1(x))
@@ -53,8 +53,8 @@ class latent_dataset(Dataset):
     def __getitem__(self,idx):
         return([self.latents[idx,:],self.tags[idx]])
 
-def train_mod(model,dataloader):
-    optimizer=torch.optim.Adam(model.parameters(), lr=0.01,weight_decay=0)
+def train_mod(model,dataloader,dataloader_val):
+    optimizer=torch.optim.Adam(model.parameters(), lr=0.01,weight_decay=0.002)
     criterion = nn.BCELoss()#
 
     epochs_num=100
@@ -67,27 +67,39 @@ def train_mod(model,dataloader):
             loss.backward()
             optimizer.step()
             total_loss+=loss
-        print("Loss for epoch "+str(epoch)+" = "+str(total_loss/(i_batch+1)))
+    
+        with torch.no_grad():
+            for i_batch_val,sampled_batch in enumerate(dataloader_val):
+                val_pred=model.fwd(sampled_batch[0])
+                val_loss=criterion(val_pred,sampled_batch[1])
+        print("Loss for epoch "+str(epoch)+" = "+str(total_loss/(i_batch+1))+" with validation loss = "+str(val_loss))
     return(model)
 
 
-cv=StratifiedKFold(n_splits=10)
-cv.split(latent_pat,tag_mat)
-
 
 if __name__=="__main__":
+    n_splits=10
     file_path=sys.argv[1:][0]
     latent_pat,tag_mat=create_data(file_path)
-    cv=StratifiedKFold(n_splits=10)
+    cv=StratifiedKFold(n_splits=n_splits)
     cv.split(latent_pat,tag_mat)
 
-    for index_train,index_test in cv.split(latent_pat):
+    auc_mean=0
+    for index_train,index_test in cv.split(latent_pat,tag_mat):
 
-        model=MLP_class_mod(input_dim=len(index_train)).double()
+        model=MLP_class_mod(input_dim=latent_pat.shape[1]).double()
+        print(len(index_train))
         latent_data=latent_dataset(latent_pat[index_train,:],tag_mat[index_train])
-        dataloader = DataLoader(latent_data, batch_size=10000,shuffle=True,num_workers=2)
-        model=train_mod(model,dataloader)
+        dataloader = DataLoader(latent_data, batch_size=len(index_train),shuffle=True,num_workers=2)
+        latent_data_val=latent_dataset(latent_pat[index_test,:],tag_mat[index_test])
+        dataloader_val = DataLoader(latent_data_val, batch_size=len(index_test),shuffle=True,num_workers=2)
+        
+        model=train_mod(model,dataloader,dataloader_val)
 
-        pred_val=model.fwd(latent_pat[index_test,:])
-        auc_roc=roc_auc_score(tag_mat[index_test],pred_val)
+        val_data=torch.tensor((latent_pat[index_test,:]))
+        print(type(val_data))
+        pred_val=model.fwd(val_data[:])
+        auc_roc=roc_auc_score(tag_mat[index_test],pred_val.detach().numpy())
         print(auc_roc)
+        auc_mean+=auc_roc
+    print("mean AUC for this setting : "+str(auc_mean/n_splits))
