@@ -178,6 +178,8 @@ def mod_select(opt,tensor_path="complete_tensor",cov_path="complete_covariates",
     if (not os.path.exists(str_dir)):
         os.makedirs(str_dir)
     else:
+        if opt.reload:
+            raise ValueError("Cannot reload a model that doesn't exist !")
         replace_prev=input("This configuration has already been run !Do you want to continue ? y/n")
         if (replace_prev=="n"):
             raise ValueError("Aborted")
@@ -238,6 +240,9 @@ def mod_select(opt,tensor_path="complete_tensor",cov_path="complete_covariates",
             mod=tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
             mod.double()
             mod.to(device)
+
+    if opt.reload:
+        mod.load_state_dict(torch.load(str_dir+"current_model.pt"))
 
     dataloader = DataLoader(train_dataset, batch_size=opt.batch,shuffle=True,num_workers=2)
     dataloader_val=None

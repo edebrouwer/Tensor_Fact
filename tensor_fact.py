@@ -36,6 +36,7 @@ parser.add_argument('--cuda',action='store_true')
 parser.add_argument('--gpu_name',default='Titan',type=str,help="Name of the gpu to use for computation Titan or Tesla")
 #Savings args
 #parser.add_argument('--outfile',default="./",type=str,help="Path to save the models and outpus")
+parser.add_argument('--reload',action='store_true',help="flag to continue training from the last state of the model")
 
 
 def train_model(dataloader,dataloader_val,mod,device,str_dir,opt):
