@@ -170,7 +170,8 @@ def mod_select(opt,tensor_path="complete_tensor",cov_path="complete_covariates",
 
     str_dir="./trained_models/"
     for key in vars(opt):
-        str_dir+=str(key)+str(vars(opt)[key])+"_"
+        if (str(key)!="reload"):
+            str_dir+=str(key)+str(vars(opt)[key])+"_"
     str_dir+=extra_tag
     str_dir+="/"
 
