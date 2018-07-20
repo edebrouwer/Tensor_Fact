@@ -29,7 +29,10 @@ else:
 #print(latent_pat.shape)
     covariates=pd.read_csv("~/Data/MIMIC/complete_covariates.csv").as_matrix() #covariates
     beta_u=torch.load(file_path+"best_model.pt")["beta_u"].cpu().numpy() #Coeffs for covariates
-    latent_pat=np.dot(covariates[:,1:],beta_u)
+    latent_pat_cov=np.dot(covariates[:,1:],beta_u)
+    print("SHAPES")
+    print(latent_pat.shape)
+    print(latent_pat_cov.shape)
 
 tags=pd.read_csv("~/Data/MIMIC/complete_death_tags.csv").sort_values("UNIQUE_ID")
 tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]

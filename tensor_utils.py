@@ -175,12 +175,13 @@ def mod_select(opt,tensor_path="complete_tensor",cov_path="complete_covariates",
     str_dir+=extra_tag
     str_dir+="/"
 
+    print(str_dir)
     #Check if output directory exits, otherwise, create it.
     if (not os.path.exists(str_dir)):
         os.makedirs(str_dir)
-    else:
         if opt.reload:
-            raise ValueError("Cannot reload a model that doesn't exist !")
+            raise ValueError("Cannot continue training that doesn't exist")
+    else:
         replace_prev=input("This configuration has already been run !Do you want to continue ? y/n")
         if (replace_prev=="n"):
             raise ValueError("Aborted")
