@@ -18,7 +18,7 @@ import progressbar
 def create_data(file_path,sample_tag=False):
     if "macau" in file_path:
         if sample_tag:
-            N_samples=5 #5 in total, with the mean included.
+            N_samples=20 #5 in total, with the mean included.
             N_dim=file_path[-3:-1]
             latent_pat=create_macau_sample_data(N_dim=int(N_dim),N_samples=N_samples,file_path=file_path)
         else:
@@ -36,7 +36,7 @@ def create_data(file_path,sample_tag=False):
     tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
     N_pat=tag_mat.shape[0]
     if sample_tag: #repeat the chain N_samples times
-        tag_mat=np.repeat(tag_mat,N_samples+1)
+        tag_mat=np.tile(tag_mat,N_samples)
     print(tag_mat.shape)
     print(latent_pat.shape)
     return latent_pat,tag_mat,N_pat,N_samples
@@ -74,7 +74,7 @@ class latent_dataset(Dataset):
         return([self.latents[idx,:],self.tags[idx]])
 
 def train_mod(model,dataloader,dataloader_val):
-    optimizer=torch.optim.Adam(model.parameters(), lr=0.01,weight_decay=0.002)
+    optimizer=torch.optim.Adam(model.parameters(), lr=0.01)#,weight_decay=0.002)
     criterion = nn.BCELoss()#
 
     epochs_num=100
@@ -96,11 +96,10 @@ def train_mod(model,dataloader,dataloader_val):
     return(model)
 
 def index_with_samples(index_original,N_samp,N_pat):
-    index_np=np.array(index_original)
-    index_full=index_original
-    for i in range(1,(N_samp)):
-        index_full+=list(index_np+i*N_pat)
-    return(index_full)
+    index_full=list(index_original)
+    for i in range(1,N_samp):
+        index_full+=list(index_original+i*N_pat)
+    return(np.array(index_full))
 
 
 if __name__=="__main__":
@@ -110,15 +109,27 @@ if __name__=="__main__":
     latent_pat,tag_mat,N_pat,N_samp=create_data(file_path,sample_tag=sample_tag)
     cv=StratifiedKFold(n_splits=n_splits)
     cv.split(latent_pat,tag_mat)
-
+    
+    print("Nombre patients")
+    print(N_pat)
+    print("Nombre samples")
+    print(N_samp)
     auc_mean=0
     for index_train,index_test in cv.split(latent_pat[:N_pat,:],tag_mat[:N_pat]):
-
+        
+        print(len(index_train)+len(index_test))
+        print(max(index_train))
         model=MLP_class_mod(input_dim=latent_pat.shape[1]).double()
         print(len(index_train))
+        print("type of index train")
+        print(type(index_train))
         if sample_tag:
             index_train=index_with_samples(index_train,N_samp,N_pat)
-            index_test=index_with_samples(index_test,N_samp,N_pat)
+            #index_test=index_with_samples(index_test,N_samp,N_pat)
+        print("Max of index_train")
+        print(max(index_train))
+        print(len(index_train))
+
         latent_data=latent_dataset(latent_pat[index_train,:],tag_mat[index_train])
         dataloader = DataLoader(latent_data, batch_size=len(index_train),shuffle=True,num_workers=2)
         latent_data_val=latent_dataset(latent_pat[index_test,:],tag_mat[index_test])
