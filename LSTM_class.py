@@ -8,13 +8,15 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
+from sklearn.metrics import roc_auc_score
+
 class Sequence(nn.Module):
     def __init__(self,input_dim,device):
         print("Model Initialization")
         super(Sequence, self).__init__()
         self.device=device
         self.input_dim=input_dim
-        self.lstm_layers=2
+        self.lstm_layers=1
         self.lstm1 = nn.LSTM(input_dim, 20, num_layers=self.lstm_layers)
         #self.lstm2 = nn.LSTM(20,20)
         self.class_layer1=nn.Linear(20,20)
@@ -85,7 +87,7 @@ class series_dataset(Dataset):
 def train_model(model,dataloader,dataloader_val,device):
     optimizer=torch.optim.Adam(model.parameters(), lr=0.01)#,weight_decay=0.002)
     criterion = nn.BCELoss()#
-    epochs_num=100
+    epochs_num=2
 
     for epoch in range(epochs_num):
         total_loss=0
@@ -112,6 +114,7 @@ def run_dummy_experiment(batch_size,time_steps,in_size):
     mod=Sequence(in_size,device)
     mod.double()
     train_model(mod,dataloader,dataloader_val,device)
+    compute_auc(mod,dummy_data_val,device)
     return(mod)
 
 def run_ford_experiment():
@@ -136,9 +139,20 @@ def run_earthquake_experiment():
     mod.double()
     mod.to(device)
     train_model(mod,dataloader,dataloader_val,device)
+    compute_auc(mod,earthquake_data_test,device)
     return(mod)
+
+def compute_auc(model,test_data,device):
+    pred_test=model.fwd(torch.transpose(test_data[:][0],1,0).to(device),len(test_data))[0,:,0]
+    print(pred_test.size())
+    print(test_data[:][1].size())
+    auc_roc=roc_auc_score(test_data[:][1].numpy().astype(int),pred_test.detach().numpy())
+    print(pred_test.detach().numpy())
+    print(test_data[:][1].numpy())
+    print(auc_roc)
 
 
 if __name__=="__main__":
-    mod=run_dummy_experiment(batch_size=50,time_steps=100,in_size=3)
-    #mod=run_earthquake_experiment()
+    #mod=run_dummy_experiment(batch_size=50,time_steps=100,in_size=3)
+
+    mod=run_earthquake_experiment()
