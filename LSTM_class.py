@@ -87,7 +87,7 @@ class series_dataset(Dataset):
 def train_model(model,dataloader,dataloader_val,device):
     optimizer=torch.optim.Adam(model.parameters(), lr=0.01)#,weight_decay=0.002)
     criterion = nn.BCELoss()#
-    epochs_num=2
+    epochs_num=20
 
     for epoch in range(epochs_num):
         total_loss=0
@@ -146,8 +146,8 @@ def compute_auc(model,test_data,device):
     pred_test=model.fwd(torch.transpose(test_data[:][0],1,0).to(device),len(test_data))[0,:,0]
     print(pred_test.size())
     print(test_data[:][1].size())
-    auc_roc=roc_auc_score(test_data[:][1].numpy().astype(int),pred_test.detach().numpy())
-    print(pred_test.detach().numpy())
+    auc_roc=roc_auc_score(test_data[:][1].numpy().astype(int),pred_test.cpu().detach().numpy())
+    print(pred_test.cpu().detach().numpy())
     print(test_data[:][1].numpy())
     print(auc_roc)
 
