@@ -87,8 +87,8 @@ class series_dataset(Dataset):
 def train_model(model,dataloader,dataloader_val,device):
     optimizer=torch.optim.Adam(model.parameters(), lr=0.01)#,weight_decay=0.002)
     criterion = nn.BCELoss()#
-    epochs_num=20
 
+    epochs_num=20
     for epoch in range(epochs_num):
         total_loss=0
         for i_batch,sampled_batch in enumerate(dataloader):
@@ -113,8 +113,8 @@ def run_dummy_experiment(batch_size,time_steps,in_size):
     dataloader_val= DataLoader(dummy_data_val, batch_size=len(dummy_data),shuffle=True,num_workers=2)
     mod=Sequence(in_size,device)
     mod.double()
-    train_model(mod,dataloader,dataloader_val,device)
-    compute_auc(mod,dummy_data_val,device)
+    trained_mod=train_model(mod,dataloader,dataloader_val,device)
+    compute_auc(trained_mod,dummy_data_val,device)
     return(mod)
 
 def run_ford_experiment():
@@ -126,7 +126,7 @@ def run_ford_experiment():
     mod=Sequence(1,device)
     mod.double()
     mod.to(device)
-    train_model(mod,dataloader,dataloader_val,device)
+    trained_mod=train_model(mod,dataloader,dataloader_val,device)
     return(mod)
 
 def run_earthquake_experiment():
@@ -138,8 +138,8 @@ def run_earthquake_experiment():
     mod=Sequence(1,device)
     mod.double()
     mod.to(device)
-    train_model(mod,dataloader,dataloader_val,device)
-    compute_auc(mod,earthquake_data_test,device)
+    trained_mod=train_model(mod,dataloader,dataloader_val,device)
+    compute_auc(trained_mod,earthquake_data_test,device)
     return(mod)
 
 def compute_auc(model,test_data,device):
@@ -153,7 +153,7 @@ def compute_auc(model,test_data,device):
 
 
 if __name__=="__main__":
-    #mod=run_dummy_experiment(batch_size=50,time_steps=100,in_size=3)
+    mod=run_dummy_experiment(batch_size=50,time_steps=100,in_size=3)
     #mod=run_ford_experiment()
 
-    mod=run_earthquake_experiment()
+    #mod=run_earthquake_experiment()
