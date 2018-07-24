@@ -140,5 +140,6 @@ def run_earthquake_experiment():
 
 
 if __name__=="__main__":
-    mod=run_dummy_experiment(batch_size=50,time_steps=100,in_size=3)
-    #mod=run_earthquake_experiment()
+    #mod=run_dummy_experiment(batch_size=50,time_steps=100,in_size=3)
+    #mod=run_ford_experiment()
+    mod=run_earthquake_experiment()
