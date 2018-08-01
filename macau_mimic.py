@@ -28,7 +28,7 @@ else:
     os.makedirs(str_dir)
 
 dir_path="~/Data/MIMIC/"
-lab_short=pd.read_csv(dir_path+"complete_tensor_train.csv")
+lab_short=pd.read_csv(dir_path+"complete_tensor.csv")
 df=lab_short[["UNIQUE_ID","LABEL_CODE","TIME_STAMP","VALUENORM"]]
 
 lab_short_val=pd.read_csv(dir_path+"complete_tensor_val.csv")
@@ -67,9 +67,10 @@ mean_lat_time=0
 for n in progressbar.progressbar(range(1,N+1)):
     mean_lat_pat+=np.loadtxt(str_dir+file_path+"-sample%d-U1-latents.csv"%n,delimiter=",")
     #mean_lat_meas+=np.loadtxt(dir_path+file_path+"sample%d-U2-latents.csv"%n,delimiter=",")
-    mean_lat_time+=np.loadtxt(dir_path+file_path+"sample%d-U3-latents.csv"%n,delimiter=",")
+    mean_lat_time+=np.loadtxt(str_dir+file_path+"-sample%d-U3-latents.csv"%n,delimiter=",")
 
 mean_lat_pat/=N
 np.save(str_dir+"mean_pat_latent.npy",mean_lat_pat)
+np.save(str_dir+"mean_time_latent.npy",mean_lat_time)
 
 print("Loaded")
