@@ -103,6 +103,7 @@ def train_model(dataloader,dataloader_val,mod,device,str_dir,opt):
         print("Computation Time:"+str(t_tot))
         train_hist=np.append(train_hist,total_loss.item()/(i_batch+1))
 
+        val_time=time.time()
         with torch.no_grad():
             if opt.death_label: #only classification loss
                 if opt.by_pat:
@@ -138,6 +139,7 @@ def train_model(dataloader,dataloader_val,mod,device,str_dir,opt):
                     if loss_val<lowest_val:
                         torch.save(mod.state_dict(),str_dir+"best_model.pt")
                         lowest_val=loss_val
+        print("Validation time = "+str(time.time()-val_time))
 
     torch.save(mod.state_dict(),str_dir+"current_model.pt")
     torch.save(train_hist,str_dir+"train_history.pt")
