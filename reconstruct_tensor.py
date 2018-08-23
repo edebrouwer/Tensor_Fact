@@ -30,7 +30,7 @@ if "macau" in file_path:
     print("MSE of the validation set is {}".format(mse))
 
     i_pat=7873
-    i_feat=13
+    i_feat=19
     
     reconstructed_series=reconstructed_tensor[i_pat,i_feat,:]
     true_samples=np.zeros(reconstructed_tensor.shape[2])

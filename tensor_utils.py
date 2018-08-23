@@ -106,6 +106,28 @@ class By_pat_tensor_fact(tensor_fact):
         return(pred)
 
 
+class XT_tensor_fact_bypat(tensor_fact):
+    def __init__(self,device,covariates,n_pat=10,n_meas=5,n_t=25,l_dim=2,n_u=2,n_w=3,l_kernel=3,sig2_kernel=1):
+        super(XT_tensor_fact_bypat,self).__init__(device=device,covariates=covariates,n_pat=n_pat,n_meas=n_meas,n_t=n_t,l_dim=l_dim,n_u=n_u,n_w=n_w,l_kernel=l_kernel,sig2_kernel=sig2_kernel)
+        self.layer_1=nn.Linear(l_dim,20)
+        self.layer_2=nn.Linear(20,20)
+        self.layer_3=nn.Linear(20,1)
+    def forward(self,idx_pat):
+        #print((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u)).size())
+        #print((self.meas_lat.weight).size())
+        #print((self.time_lat.weight+torch.mm(self.cov_w_fixed,self.beta_w)).size())
+        time_feat_tens=torch.einsum('jk,tk->jtk',((self.meas_lat.weight),(self.time_lat.weight+torch.mm(self.cov_w_fixed,self.beta_w))))
+        #print(time_feat_tens.size())
+        lat=torch.einsum('ik,jtk->ijtk',((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u)),time_feat_tens))
+        #print(lat.size())
+        #latent=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat.weight)*(self.time_lat.weight+torch.mm(self.cov_w_fixed,self.beta_w)))
+        out=F.relu(self.layer_1(lat))
+        #print(out.size())
+        out=F.relu(self.layer_2(out))
+        out=self.layer_3(out).squeeze(1)
+        return(out.squeeze(3))
+
+
 
 class TensorFactDataset(Dataset):
     def __init__(self,csv_file_serie="lab_short_tensor.csv",file_path="~/Data/MIMIC/",cov_path="complete_covariates",transform=None):
@@ -147,20 +169,19 @@ class TensorFactDataset_ByPat(Dataset):
         self.data_matrix=sparse_data.to_dense()
 
         self.cov_u=torch.tensor(pd.read_csv(file_path+cov_path+".csv").as_matrix()[:,1:]).to(torch.double)
-        self.length=self.cov_u.size(0)
+        #self.length=self.cov_u.size(0)
         self.covu_num=self.cov_u.size(1)
 
         self.pat_num=self.lab_short["UNIQUE_ID"].nunique()
         self.meas_num=self.lab_short["LABEL_CODE"].nunique()
-
+        self.length=self.pat_num
         #Computations for the classification setting
         #self.tags=pd.read_csv(file_path+"death_tag_tensor.csv").as_matrix()[:,1]
         #self.test_idx=np.random.choice(self.length,size=int(0.2*self.length),replace=False) #0.2 validation rate
         #self.train_tags=self.tags
         #self.train_tags[self.test_idx]=np.nan
-
     def __len__(self):
-        return self.length
+        return self.pat_num
     def __getitem__(self,idx):
         return([idx,self.data_matrix[idx,:,:]])#,self.train_tags[idx]])
 
@@ -216,6 +237,10 @@ def mod_select(opt,tensor_path="complete_tensor",cov_path="complete_covariates",
             val_dataset=TensorFactDataset_ByPat(csv_file_serie=tensor_path+"_val"+suffix,cov_path=cov_path)
 
         mod=By_pat_tensor_fact(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.length,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
+
+        if opt.XT:
+            mod=XT_tensor_fact_bypat(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
+        
         mod.double()
         mod.to(device)
     else:
