@@ -28,10 +28,10 @@ else:
     os.makedirs(str_dir)
 
 dir_path="~/Data/MIMIC/"
-lab_short=pd.read_csv(dir_path+"complete_tensor_train.csv")
+lab_short=pd.read_csv(dir_path+"complete_tensor_train1.csv")
 df=lab_short[["UNIQUE_ID","LABEL_CODE","TIME_STAMP","VALUENORM"]]
 
-lab_short_val=pd.read_csv(dir_path+"complete_tensor_val.csv")
+lab_short_val=pd.read_csv(dir_path+"complete_tensor_val1.csv")
 df_val=lab_short[["UNIQUE_ID","LABEL_CODE","TIME_STAMP","VALUENORM"]]
 
 #cov_values=[chr(i) for i in range(ord('A'),ord('A')+18)]
@@ -44,7 +44,7 @@ cov_u=pd.read_csv(dir_path+"complete_covariates.csv").as_matrix()[:,1:]
 print(cov_u.shape)
 print(cov_t.shape)
 
-results=macau.macau(Y=df,Ytest=df_val,side=[cov_u,None,cov_t],num_latent=num_latents,verbose=True,burnin=400,nsamples=opt.samples,precision="adaptive",save_prefix=save_prefix)
+results=macau.macau(Y=df,Ytest=df_val,side=[None,None,None],num_latent=num_latents,verbose=True,burnin=400,nsamples=opt.samples,precision="adaptive",save_prefix=save_prefix)
 
 print("TEST RMSE : "+str(results.rmse_test))
 

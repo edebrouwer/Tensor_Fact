@@ -11,22 +11,30 @@ import matplotlib.pyplot as plt
 file_path=sys.argv[1:][0]
 
 if "macau" in file_path:
-    latent_pat=np.load(file_path+"mean_pat_latent.npy").T
-    latent_times=np.load(file_path+"mean_time_latent.npy").T
-    latent_feat=np.load(file_path+"mean_feat_latent.npy").T
 
-    reconstructed_tensor=np.einsum('il,jl,kl->ijk',latent_pat,latent_feat,latent_times)
-    print("Built learnt tensor with shape{}".format(reconstructed_tensor.shape))
-    true_tensor=pd.read_csv("~/Data/MIMIC/complete_tensor_train.csv")[["UNIQUE_ID","LABEL_CODE","TIME_STAMP","VALUENORM"]]
-    true_tensor_val=pd.read_csv("~/Data/MIMIC/complete_tensor_val.csv")[["UNIQUE_ID","LABEL_CODE","TIME_STAMP","VALUENORM"]]
-
-
+    #true_tensor=pd.read_csv("~/Data/MIMIC/complete_tensor_train1.csv")[["UNIQUE_ID","LABEL_CODE","TIME_STAMP","VALUENORM"]]
+    true_tensor_val=pd.read_csv("~/Data/MIMIC/complete_tensor_val1.csv")[["UNIQUE_ID","LABEL_CODE","TIME_STAMP","VALUENORM"]]
 
     val_idx=true_tensor_val.values[:,:3]
-    reconstructed_val=reconstructed_tensor[val_idx[:,0].astype(int),val_idx[:,1].astype(int),val_idx[:,2].astype(int)]
+ 
+    mse=0
+    for i in range(400):
+        print(i)
+        latent_pat=np.loadtxt(file_path+"70_macau-sample"+str(i+1)+"-U1-latents.csv",delimiter=",").T
+        latent_times=np.loadtxt(file_path+"70_macau-sample"+str(i+1)+"-U2-latents.csv",delimiter=",").T
+        latent_feat=np.loadtxt(file_path+"70_macau-sample"+str(i+1)+"-U3-latents.csv",delimiter=",").T
+
+        print("Einsum")
+        reconstructed_tensor=np.einsum('il,jl,kl->ijk',latent_pat,latent_feat,latent_times)
+        print("Built learnt tensor with shape{}".format(reconstructed_tensor.shape))
+
+        reconstructed_val=reconstructed_tensor[val_idx[:,0].astype(int),val_idx[:,1].astype(int),val_idx[:,2].astype(int)]
     
     
-    mse=np.mean((reconstructed_val-true_tensor_val.values[:,3])**2)
+        mse+=np.mean((reconstructed_val-true_tensor_val.values[:,3])**2)
+        print(np.sqrt(mse/(i+1)))
+    print(mse/400)
+    
     print("MSE of the validation set is {}".format(mse))
 
     i_pat=7873
