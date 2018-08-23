@@ -158,7 +158,6 @@ class TensorFactDataset_ByPat(Dataset):
         #self.test_idx=np.random.choice(self.length,size=int(0.2*self.length),replace=False) #0.2 validation rate
         #self.train_tags=self.tags
         #self.train_tags[self.test_idx]=np.nan
-
     def __len__(self):
         return self.length
     def __getitem__(self,idx):
