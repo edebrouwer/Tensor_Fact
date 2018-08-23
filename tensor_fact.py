@@ -68,6 +68,8 @@ def train_model(dataloader,dataloader_val,mod,device,str_dir,opt):
                 target=torch.masked_select(target,mask)
                 optimizer.zero_grad()
                 preds=mod.forward(indexes)
+                #print(mask.size())
+                #print(preds.size())
                 preds=torch.masked_select(preds,mask)
                 if opt.death_label:
                     lab_target=sampled_batch[3].to(device)
