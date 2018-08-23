@@ -240,7 +240,7 @@ def mod_select(opt,tensor_path="complete_tensor",cov_path="complete_covariates",
 
         if opt.XT:
             mod=XT_tensor_fact_bypat(device=device,covariates=train_dataset.cov_u,n_pat=train_dataset.pat_num,n_meas=train_dataset.meas_num,n_t=N_t,l_dim=opt.latents,n_u=train_dataset.covu_num,n_w=1)
-        
+
         mod.double()
         mod.to(device)
     else:
@@ -277,3 +277,16 @@ def mod_select(opt,tensor_path="complete_tensor",cov_path="complete_covariates",
         dataloader_val = DataLoader(val_dataset, batch_size=len(val_dataset),shuffle=False)
 
     return(dataloader,dataloader_val,mod,device,str_dir)
+
+def model_selector(dataset,options):
+    #The training dataset is an argument in this version
+    #options is a dictionary with entries :
+        #'type'
+        #'latents'
+
+    device=torch.device("cuda:0")
+    if options["type"]=="plain_fact":
+        mod=tensor_fact(device=device,covariates=dataset.cov_u,n_pat=dataset.pat_num,n_meas=dataset.meas_num,n_t=97,l_dim=options['latents'],n_u=dataset.covu_num,n_w=1)
+        mod.double()
+        mod.to(device)
+    return(mod)
