@@ -38,7 +38,11 @@ class tensor_fact(nn.Module):
         full_dim=3*l_dim+n_u+n_w
         #print(full_dim)
 
-
+        if (n_u+n_w)==0:
+            self.cov_flag=False
+            print("Covariates disabled")
+        else:
+            self.cov_flags=True
         #if (mode=="Class"):
     #        #classification
     #        self.layer_class_1=nn.Linear((l_dim+n_u),20)
@@ -52,7 +56,10 @@ class tensor_fact(nn.Module):
         #self.inv_Kernel=torch.tensor(np.linalg.inv(SexpKernel)/sig2_kernel,requires_grad=False)
 
     def forward(self,idx_pat,idx_meas,idx_t):
-        pred=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(self.cov_w_fixed[idx_t,:],self.beta_w))).sum(1)
+        if self.cov_flag:
+            pred=((self.pat_lat(idx_pat)+torch.mm(self.covariates_u[idx_pat,:],self.beta_u))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t)+torch.mm(self.cov_w_fixed[idx_t,:],self.beta_w))).sum(1)
+        else:
+            pred=((self.pat_lat(idx_pat))*(self.meas_lat(idx_meas))*(self.time_lat(idx_t))).sum(1)
         return(pred)
 
     def label_pred(self,idx_pat,cov_u): #Classifiction task
@@ -63,7 +70,10 @@ class tensor_fact(nn.Module):
     def compute_regul(self):
         regul=torch.trace(torch.exp(-torch.mm(torch.mm(torch.t(self.time_lat.weight),self.inv_Kernel),self.time_lat.weight)))
         return(regul)
-
+    def get_list_embeddings_params(self):
+        return([self.pat_lat.weight,self.meas_lat.weight,self.time_lat.weight])
+    def get_list_betas(self):
+        return([self.beta_u,self.beta_w])
 
 
 class deep_tensor_fact(tensor_fact):
@@ -278,15 +288,19 @@ def mod_select(opt,tensor_path="complete_tensor",cov_path="complete_covariates",
 
     return(dataloader,dataloader_val,mod,device,str_dir)
 
-def model_selector(dataset,options):
+def model_selector(dataset,options,device):
     #The training dataset is an argument in this version
     #options is a dictionary with entries :
         #'type'
         #'latents'
 
-    device=torch.device("cuda:0")
+    #device is either "cpu" or "cuda:0"
+    device=torch.device(device)
     if options["type"]=="plain_fact":
-        mod=tensor_fact(device=device,covariates=dataset.cov_u,n_pat=dataset.pat_num,n_meas=dataset.meas_num,n_t=97,l_dim=options['latents'],n_u=dataset.covu_num,n_w=1)
+        if options["cov"]==True:
+            mod=tensor_fact(device=device,covariates=dataset.cov_u,n_pat=dataset.pat_num,n_meas=dataset.meas_num,n_t=97,l_dim=options['latents'],n_u=dataset.covu_num,n_w=1)
+        else:
+            mod=tensor_fact(device=device,covariates=dataset.cov_u,n_pat=dataset.pat_num,n_meas=dataset.meas_num,n_t=97,l_dim=options['latents'],n_u=0,n_w=0)
         mod.double()
         mod.to(device)
     return(mod)

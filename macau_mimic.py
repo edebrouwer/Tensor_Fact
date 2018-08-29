@@ -12,8 +12,13 @@ parser=argparse.ArgumentParser(description="Bayesian Tensor Factorization")
 parser.add_argument('--latents',default=8,type=int,help="Number of latent dimensions")
 parser.add_argument('--hard',action='store_true',help="Challenging validation split")
 parser.add_argument('--samples',default=400,type=int,help="Number of samples after burnin")
+parser.add_argument('--burnin',default=400,type=int,help="Number of burnin samples")
+parser.add_argument('--fold',default=1,type=int,help="The fold number to be used for data")
+
 
 opt=parser.parse_args()
+
+print("Fold number {} used for training and validation".format(opt.fold))
 
 num_latents=opt.latents
 save_prefix=str(num_latents)+"_macau"
@@ -28,11 +33,11 @@ else:
     os.makedirs(str_dir)
 
 dir_path="~/Data/MIMIC/"
-lab_short=pd.read_csv(dir_path+"complete_tensor_train1.csv")
+lab_short=pd.read_csv(dir_path+"complete_tensor_train"+str(opt.fold)+".csv")
 df=lab_short[["UNIQUE_ID","LABEL_CODE","TIME_STAMP","VALUENORM"]]
 
-lab_short_val=pd.read_csv(dir_path+"complete_tensor_val1.csv")
-df_val=lab_short[["UNIQUE_ID","LABEL_CODE","TIME_STAMP","VALUENORM"]]
+lab_short_val=pd.read_csv(dir_path+"complete_tensor_val"+str(opt.fold)+".csv")
+df_val=lab_short_val[["UNIQUE_ID","LABEL_CODE","TIME_STAMP","VALUENORM"]]
 
 #cov_values=[chr(i) for i in range(ord('A'),ord('A')+18)]
 #cov_u=lab_short.groupby("UNIQUE_ID").first()[cov_values].as_matrix()
@@ -44,7 +49,7 @@ cov_u=pd.read_csv(dir_path+"complete_covariates.csv").as_matrix()[:,1:]
 print(cov_u.shape)
 print(cov_t.shape)
 
-results=macau.macau(Y=df,Ytest=df_val,side=[None,None,None],num_latent=num_latents,verbose=True,burnin=400,nsamples=opt.samples,precision="adaptive",save_prefix=save_prefix)
+results=macau.macau(Y=df,Ytest=df_val,side=[cov_u,None,None],num_latent=num_latents,verbose=True,burnin=opt.burnin,nsamples=opt.samples,precision="adaptive",save_prefix=save_prefix)
 
 print("TEST RMSE : "+str(results.rmse_test))
 
@@ -61,6 +66,9 @@ import progressbar
 file_path=save_prefix
 N=opt.samples
 
+
+summary_dict={'N_samples':N,"N_latents":num_latents}
+
 mean_lat_pat=0
 mean_lat_meas=0
 mean_lat_time=0
@@ -76,5 +84,5 @@ mean_lat_time/=N
 np.save(str_dir+"mean_pat_latent.npy",mean_lat_pat)
 np.save(str_dir+"mean_feat_latent.npy",mean_lat_meas)
 np.save(str_dir+"mean_time_latent.npy",mean_lat_time)
-
+np.save(str_dir+"sum_sim.npy",summary_dict)
 print("Loaded")
