@@ -72,6 +72,8 @@ class latent_dataset(Dataset):
         return(self.latents.shape[0])
     def __getitem__(self,idx):
         return([self.latents[idx,:],self.tags[idx]])
+    def get_dim(self):
+        return self.latents.shape[1]
 
 def train_mod(model,dataloader,dataloader_val):
     optimizer=torch.optim.Adam(model.parameters(), lr=0.01)#,weight_decay=0.002)
@@ -109,14 +111,14 @@ if __name__=="__main__":
     latent_pat,tag_mat,N_pat,N_samp=create_data(file_path,sample_tag=sample_tag)
     cv=StratifiedKFold(n_splits=n_splits)
     cv.split(latent_pat,tag_mat)
-    
+
     print("Nombre patients")
     print(N_pat)
     print("Nombre samples")
     print(N_samp)
     auc_mean=0
     for index_train,index_test in cv.split(latent_pat[:N_pat,:],tag_mat[:N_pat]):
-        
+
         print(len(index_train)+len(index_test))
         print(max(index_train))
         model=MLP_class_mod(input_dim=latent_pat.shape[1]).double()
