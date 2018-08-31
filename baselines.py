@@ -8,6 +8,16 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
 
+from sklearn.metrics import roc_auc_score
+
+import random
+import ray
+import ray.tune as tune
+from ray.tune.hyperband import HyperBandScheduler
+#from ray.tune.schedulers import AsyncHyperBandScheduler,HyperBandScheduler
+from ray.tune import Trainable, TrainingResult
+from ray.tune.util import pin_in_object_store, get_pinned_object
+
 
 class GRU_mean(nn.Module):
     def __init__(self,input_dim,mean_feats,latents=100):
