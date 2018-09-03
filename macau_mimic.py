@@ -34,9 +34,9 @@ else:
 
 dir_path="~/Data/MIMIC/"
 if opt.segmented:
-    lab_short=pd.read_csv(dir_path+"complete_tensor_train_segmented.csv")
-    lab_short_val=pd.read_csv(dir_path+"complete_tensor_train_segmented.csv")
-    cov_u=pd.read_csv(dir_path+"complete_covariates_train.csv").as_matrix()[:,1:]
+    lab_short=pd.read_csv(dir_path+"LSTM_tensor_train.csv")
+    lab_short_val=pd.read_csv(dir_path+"LSTM_tensor_train.csv")
+    cov_u=pd.read_csv(dir_path+"LSTM_covariates_train.csv").as_matrix()[:,1:]
 else:
     lab_short=pd.read_csv(dir_path+"complete_tensor_train"+str(opt.fold)+".csv")
     lab_short_val=pd.read_csv(dir_path+"complete_tensor_val"+str(opt.fold)+".csv")
@@ -54,7 +54,7 @@ cov_t=np.expand_dims(np.arange(97),axis=1)
 print(cov_u.shape)
 print(cov_t.shape)
 
-results=macau.macau(Y=df,Ytest=df_val,side=[cov_u,None,cov_t],num_latent=num_latents,verbose=True,burnin=opt.burnin,nsamples=opt.samples,precision="adaptive",save_prefix=save_prefix)
+results=macau.macau(Y=df,Ytest=df_val,side=[None,None,None],num_latent=num_latents,verbose=True,burnin=opt.burnin,nsamples=opt.samples,precision="adaptive",save_prefix=save_prefix)
 
 print("TEST RMSE : "+str(results.rmse_test))
 
