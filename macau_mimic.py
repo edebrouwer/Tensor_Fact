@@ -32,7 +32,7 @@ else:
     shutil.rmtree(str_dir)
     os.makedirs(str_dir)
 
-dir_path="~/Data/MIMIC/"
+dir_path="~/Documents/Data/Full_MIMIC/Clean_data/"
 if opt.segmented:
     lab_short=pd.read_csv(dir_path+"complete_tensor_train_segmented.csv")
     lab_short_val=pd.read_csv(dir_path+"complete_tensor_train_segmented.csv")
