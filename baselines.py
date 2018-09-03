@@ -18,7 +18,10 @@ from ray.tune.async_hyperband import AsyncHyperBandScheduler
 from ray.tune import Trainable, TrainingResult
 from ray.tune.util import pin_in_object_store, get_pinned_object
 import os
-
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve,auc
 parser=argparse.ArgumentParser(description="Baselines for TS classification")
 
 #Model parameters
@@ -159,19 +162,21 @@ def train(device,epoch_max,L2):
     data_val=LSTMDataset_ByPat(csv_file_serie="LSTM_tensor_val.csv",file_path="~/Data/MIMIC/",cov_path="LSTM_covariates_val",tag_path="LSTM_death_tags_val.csv")
 
     #means_vec for imputation.
-    means_df=pd.Series.from_csv("~/Documents/Data/Full_MIMIC/Clean_data/mean_features.csv")
-    means_vec=torch.tensor(means_df.as_matrix(),dtype=tensor.float)
+    means_df=pd.Series.from_csv("~/Data/MIMIC/mean_features.csv")
+    means_vec=torch.tensor(means_df.as_matrix(),dtype=torch.float)
 
     dataloader=DataLoader(data_train,batch_size=5000,shuffle=True,num_workers=2)
     dataloader_val= DataLoader(data_val,batch_size=1000,shuffle=False)
 
     mod=GRU_mean(data_train.meas_num,means_vec,device,imputation_mode="simple")
+    mod.float()
+    mod.to(device)
     #mod.double()
 
-    for epoch in range(epoch_max):
-        if self.timestep<50:
+    for epoch in range(int(epoch_max)):
+        if epoch<50:
             l_r=0.0005
-        elif self.timestep<95:
+        elif epoch<95:
             l_r=0.00015
         else:
             l_r=0.00005
@@ -197,12 +202,12 @@ def train(device,epoch_max,L2):
         auc_mean=loss_val/(i_val+1)
         print(auc_mean)
     outfile_path="./unique_model.pt"
-    torch.save(mod.state_dict(),path)
+    torch.save(mod.state_dict(),outfile_path)
     print("Model saved in the file "+outfile_path)
 
     #Compute validation AUC curve
     with torch.no_grad():
-        fpr,tpr,_ = roc_curve(mod.forward(torch.transpose(data_val.data_matrix.to(device),1,2)).cpu().detach().numpy(),data_val.tags.numpy())
+        fpr,tpr,_ = roc_curve(data_val.tags,mod.forward(torch.transpose(data_val.data_matrix.to(device),1,2)).cpu().detach().numpy())
         roc_auc=auc(fpr,tpr)
         plt.figure()
         lw = 2
@@ -215,21 +220,8 @@ def train(device,epoch_max,L2):
         plt.ylabel('True Positive Rate')
         plt.title('Receiver operating characteristic example')
         plt.legend(loc="lower right")
-        plt.show()
+        plt.savefig("Unique_AUC.pdf")
 
-
-
-
-    print('Start training')
-    for i_batch,sampled_batch in enumerate(dataloader):
-        optimizer.zero_grad()
-        target=sampled_batch[2].float()
-        print(sampled_batch[1].size())
-        pred=mod.forward(torch.transpose(sampled_batch[1],1,2)) #Feed as batchxtimexfeatures
-        loss=criterion(pred,target)
-        loss.backward()
-        optimizer.step()
-        print(loss.detach().numpy())
 
 
 class train_class(Trainable):
@@ -295,7 +287,7 @@ if __name__=="__main__":
 
     opt=parser.parse_args()
     if opt.unique:
-        return(train("cuda:0",opt.maxepochs,opt.L2))
+        train(torch.device("cuda:0"),opt.maxepochs,opt.L2)
     else:
         ray.init(num_cpus=10,num_gpus=2)
 
@@ -323,4 +315,4 @@ if __name__=="__main__":
          }
 
 
-         tune.run_experiments({"GRU_simple_2layersclassif_350epochs":exp},scheduler=hyperband)
+        tune.run_experiments({"GRU_simple_2layersclassif_350epochs":exp},scheduler=hyperband)

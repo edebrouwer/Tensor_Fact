@@ -148,4 +148,4 @@ exp={
     }
  }
 
-tune.run_experiments({"Classification_example":exp},scheduler=hyperband)
+tune.run_experiments({"GRU_class":exp},scheduler=hyperband)
