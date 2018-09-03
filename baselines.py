@@ -13,35 +13,37 @@ from sklearn.metrics import roc_auc_score
 import random
 import ray
 import ray.tune as tune
-from ray.tune.hyperband import HyperBandScheduler
+from ray.tune.async_hyperband import AsyncHyperBandScheduler
 #from ray.tune.schedulers import AsyncHyperBandScheduler,HyperBandScheduler
 from ray.tune import Trainable, TrainingResult
 from ray.tune.util import pin_in_object_store, get_pinned_object
-
+import os
 
 class GRU_mean(nn.Module):
-    def __init__(self,input_dim,mean_feats,latents=100):
+    def __init__(self,input_dim,mean_feats,device,latents=100):
         #mean_feats should be a torch vector containing the computed means of each features for imputation.
         super(GRU_mean,self).__init__()
         self.mean_feats=mean_feats
         self.layer1=nn.GRU(input_dim,latents,1,batch_first=True)
-        self.classif_layer=nn.Linear(latents,1)
-
+        self.classif_layer1=nn.Linear(latents,100)
+        self.classif_layer1bis=nn.Linear(100,100)
+        self.classif_layer2=nn.Linear(100,1)
+        self.device=device
     def forward(self,x):
         #x is a batch X  T x input_dim tensor
         x=self.impute(x)
-        print(x.shape)
         out,h_n=self.layer1(x)
-        pred=F.sigmoid(self.classif_layer(h_n))
-        return(pred)
+        pred=F.relu(self.classif_layer1(h_n))
+        pred=F.relu(self.classif_layer1bis(pred))
+        pred=F.sigmoid(self.classif_layer2(pred))
+        return(pred[0,:,0])
 
     def impute(self,x):
         #x is a batch X T x input_dim tensor
         #Replace NANs by the corresponding mean_values.
         n_batch=x.size(0)
         n_t=x.size(1)
-        x_mean=self.mean_feats.repeat(n_batch,n_t,1) #Tensor with only the means
-        print(x_mean.size())
+        x_mean=self.mean_feats.repeat(n_batch,n_t,1).to(self.device) #Tensor with only the means
         non_nan_mask=(x==x)
         x_mean[non_nan_mask]=x[non_nan_mask]
         return(x_mean)
@@ -92,11 +94,6 @@ def train():
     data=LSTMDataset_ByPat(file_path="~/Documents/Data/Full_MIMIC/Clean_data/")
     dataloader=DataLoader(data,batch_size=100,shuffle=True,num_workers=2)
 
-    print("Number of measurements")
-    print(data.meas_num)
-    print("Should be same as")
-    print(means_vec.size())
-
     mod=GRU_mean(data.meas_num,means_vec)
     mod.double()
 
@@ -118,14 +115,14 @@ def train():
 
 class train_class(Trainable):
     def _setup(self):
-        self.device=torch.device("cpu")
+        self.device=torch.device("cuda:0")
         #means_vec for imputation.
-        means_df=pd.Series.from_csv("~/Documents/Data/Full_MIMIC/Clean_data/mean_features.csv")
-        means_vec=torch.tensor(means_df.as_matrix())
-        self.mod=GRU_mean(get_pinned_object(data_train).meas_num,means_vec)
+       
+        self.mod=GRU_mean(get_pinned_object(data_train).meas_num,get_pinned_object(means_vec),self.device)
         self.mod.double()
+        self.mod.to(self.device)
 
-        self.dataloader=DataLoader(get_pinned_object(data_train),batch_size=100,shuffle=True,num_workers=2)
+        self.dataloader=DataLoader(get_pinned_object(data_train),batch_size=5000,shuffle=True,num_workers=2)
         self.dataloader_val= DataLoader(get_pinned_object(data_val),batch_size=1000,shuffle=False)
 
         self.timestep=0
@@ -133,12 +130,12 @@ class train_class(Trainable):
         self.timestep+=1
 
         #Select learning rate depending on the epoch.
-        if self.timestep<40:
-            l_r=0.005
-        elif self.timestep<60:
-            l_r=0.0015
-        else:
+        if self.timestep<50:
             l_r=0.0005
+        elif self.timestep<75:
+            l_r=0.00015
+        else:
+            l_r=0.00005
 
         optimizer = torch.optim.Adam(self.mod.parameters(), lr=l_r, weight_decay=self.config["L2"])
 
@@ -146,8 +143,8 @@ class train_class(Trainable):
 
         for i_batch,sampled_batch in enumerate(self.dataloader):
             optimizer.zero_grad()
-            target=sampled_batch[2].double()
-            pred=mod.forward(torch.transpose(sampled_batch[1],1,2)) #Feed as batchxtimexfeatures
+            target=sampled_batch[2].double().to(self.device)
+            pred=self.mod.forward(torch.transpose(sampled_batch[1].to(self.device),1,2)) #Feed as batchxtimexfeatures
             loss=criterion(pred,target)
             loss.backward()
             optimizer.step()
@@ -155,8 +152,8 @@ class train_class(Trainable):
         with torch.no_grad():
             loss_val=0
             for i_val,batch_val in enumerate(self.dataloader_val):
-                target=batch_val[2].double()
-                pred=mod.forward(torch.transpose(batch_val[1],1,2)) #Feed as batchxtimexfeatures
+                target=batch_val[2].double().to(self.device)
+                pred=self.mod.forward(torch.transpose(batch_val[1].to(self.device),1,2)) #Feed as batchxtimexfeatures
                 loss_val+=roc_auc_score(target,pred)
         auc_mean=loss_val/(i_val+1)
 
@@ -175,24 +172,30 @@ class train_class(Trainable):
         self.mod.load_state_dict(torch.load(checkpoint_path))
         self.timestep=np.load(checkpoint_path+"_timestep.npy").item()
 
-ray.init(num_cpus=10)
+ray.init(num_cpus=10,num_gpus=2)
 
 
 
-data_train=pin_in_object_store(LSTMDataset_ByPat(file_path="~/Documents/Data/Full_MIMIC/Clean_data/"))
-data_val=pin_in_object_store(LSTMDataset_ByPat(csv_file_serie="LSTM_tensor_val.csv",file_path="~/Documents/Data/Full_MIMIC/Clean_data/",cov_path="LSTM_covariates_val",tag_path="LSTM_death_tags_val.csv"))
-
+data_train=pin_in_object_store(LSTMDataset_ByPat(file_path="~/Data/MIMIC/"))
+data_val=pin_in_object_store(LSTMDataset_ByPat(csv_file_serie="LSTM_tensor_val.csv",file_path="~/Data/MIMIC/",cov_path="LSTM_covariates_val",tag_path="LSTM_death_tags_val.csv"))
+means_df=pd.Series.from_csv("~/Data/MIMIC/mean_features.csv")
+means_vec=pin_in_object_store(torch.tensor(means_df.as_matrix()))
+        
 tune.register_trainable("my_class", train_class)
 
-hyperband=HyperBandScheduler(time_attr="timesteps_total",reward_attr="mean_accuracy",max_t=100)
+hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="mean_accuracy",max_t=150,grace_period=15)
 
 exp={
         'run':"my_class",
-        'repeat':5,
-        'stop':{"training_iteration":10},
+        'repeat':50,
+        'stop':{"training_iteration":150},
+        'trial_resources':{
+                        "gpu":1,
+                        "cpu":1
+                    },
         'config':{
-        "L2":lambda spec: 10**(8*random.random()-4)
+        "L2":lambda spec: 10**(4*random.random()-5)
     }
  }
 
-tune.run_experiments({"GRU_mean":exp},scheduler=hyperband)
+tune.run_experiments({"GRU_mean_2layersclassif":exp},scheduler=hyperband)

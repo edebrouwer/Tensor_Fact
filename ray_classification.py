@@ -4,6 +4,7 @@ import warnings
 
 import random
 import numpy as np
+import pandas as pd
 import ray
 import ray.tune as tune
 from ray.tune.hyperband import HyperBandScheduler
@@ -21,14 +22,15 @@ from torch.utils.data import Dataset, DataLoader
 
 from sklearn import svm
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import StratifiedKFold
 
 import os
 import shutil
-
+import sys
 
 class train_class(Trainable):
     def _setup(self):
-
+        self.timestep=0
         self.clf=svm.SVC(C=self.config["C"],class_weight="balanced",probability=True,kernel="linear",gamma=self.config["gamma"])
     def _train(self):
         self.timestep+=1
@@ -41,10 +43,12 @@ class train_class(Trainable):
             y_train=get_pinned_object(y)[train_index]
             x_val=get_pinned_object(x)[val_index,:]
             y_val=get_pinned_object(y)[val_index]
-            probas_=clf.fit(x_train,y_train).predict_proba(x_val)
-            auc+=roc_auc_score(y_val,probas_)
+            probas_=self.clf.fit(x_train,y_train).predict_proba(x_val)
+            print(y_val.shape)
+            print(probas_.shape)
+            auc+=roc_auc_score(y_val,probas_[:,1])
 
-        return TrainingResult(mean_accuracy=auc,timesteps_this_iter=1)
+        return TrainingResult(mean_accuracy=auc/n_splits,timesteps_this_iter=1)
 
     def _save(self,checkpoint_dir):
         return path
@@ -53,7 +57,7 @@ class train_class(Trainable):
 
 file_path=sys.argv[1:][0] # This file should contain a numpy array with the latents and the label as first columnself.
 
-ray.init(num_cpus=10)
+ray.init(num_cpus=3)
 
 latents=np.load(file_path)
 tags=pd.read_csv("~/Data/MIMIC/complete_death_tags.csv").sort_values("UNIQUE_ID")

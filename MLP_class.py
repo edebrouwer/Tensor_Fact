@@ -53,8 +53,8 @@ def create_macau_sample_data(N_dim,N_samples,file_path):
 class MLP_class_mod(nn.Module):
     def __init__(self,input_dim):
         super(MLP_class_mod,self).__init__()
-        self.layer_1=nn.Linear(input_dim,70)
-        self.layer_1bis=nn.Linear(70,70)
+        self.layer_1=nn.Linear(input_dim,200)
+        self.layer_1bis=nn.Linear(200,70)
         self.layer_2=nn.Linear(70,20)
         self.layer_3=nn.Linear(20,1)
     def fwd(self,x):
