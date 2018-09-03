@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-
+import argparse
 import torch
 import torch.nn as nn
 
@@ -18,6 +18,17 @@ from ray.tune.async_hyperband import AsyncHyperBandScheduler
 from ray.tune import Trainable, TrainingResult
 from ray.tune.util import pin_in_object_store, get_pinned_object
 import os
+
+parser=argparse.ArgumentParser(description="Baselines for TS classification")
+
+#Model parameters
+parser.add_argument('--L2',default=0,type=float,help="L2 penalty (weight decay")
+parser.add_argument('--maxepochs',default=0,type=float,help="Max number of epochs for the training.")
+
+#Model selection
+parser.add_argument('--unique',action='store_true',help="Train a unique model and saves it.")
+
+
 
 class GRU_mod(nn.Module):
     def __init__(self,input_dim,latents=100):
@@ -96,8 +107,9 @@ class GRU_mean(nn.Module):
             Delta[:,idt,:]=torch.ones((n_batch,x.size(2)),device=self.device)+a#(1-observed_mask[:,idt-1,:])*Delta[:,idt-1,:]
         return torch.cat((self.impute(x),observed_mask.float(),Delta),dim=2)
 
+
 class LSTMDataset_ByPat(Dataset):
-    def __init__(self,csv_file_serie="LSTM_tensor_train.csv",file_path="~/Data/MIMIC/",cov_path="LSTM_covariates_train",tag_path="LSTM_death_tags_train.csv",transform=None):
+    def __init__(self,csv_file_serie="LSTM_tensor_train.csv",file_path="~/Data/MIMIC/",cov_path="LSTM_covariates_train",tag_path="LSTM_death_tags_train.csv",transform=None,latents_path=None):
         self.lab_short=pd.read_csv(file_path+csv_file_serie)
         d_idx=dict(zip(self.lab_short["UNIQUE_ID"].unique(),np.arange(self.lab_short["UNIQUE_ID"].nunique())))
         self.lab_short["PATIENT_IDX"]=self.lab_short["UNIQUE_ID"].map(d_idx)
@@ -124,6 +136,13 @@ class LSTMDataset_ByPat(Dataset):
         tags_df.sort_values(by="PATIENT_IDX",inplace=True)
         self.tags=tags_df["DEATHTAG"].as_matrix()
 
+        #Imputation with CPD
+        if latents_path is not None:
+            latents_pat_mean=np.load(latents_path+"mean_pat_latent.npy")
+            latents_feat_mean=np.load(latents_path+"mean_feat_latent.npy")
+            latents_time_mean=np.load(latents_path+"mean_time_latent.npy")
+            reconstructed_tensor=torch.Tensor(np.einsum('il,jl,kl->ijk',latents_pat_mean,latents_feat_mean,latents_times_mean))
+            #To be continued....
         #Some dimensions.
         self.covu_num=self.cov_u.size(1)
         self.pat_num=self.lab_short["UNIQUE_ID"].nunique()
@@ -134,21 +153,73 @@ class LSTMDataset_ByPat(Dataset):
     def __getitem__(self,idx):
         return([idx,self.data_matrix[idx,:,:],self.tags[idx]])#,self.train_tags[idx]])
 
-def train():
+def train(device,epoch_max,L2):
+
+    data_train=LSTMDataset_ByPat(file_path="~/Data/MIMIC/")
+    data_val=LSTMDataset_ByPat(csv_file_serie="LSTM_tensor_val.csv",file_path="~/Data/MIMIC/",cov_path="LSTM_covariates_val",tag_path="LSTM_death_tags_val.csv")
+
     #means_vec for imputation.
     means_df=pd.Series.from_csv("~/Documents/Data/Full_MIMIC/Clean_data/mean_features.csv")
     means_vec=torch.tensor(means_df.as_matrix(),dtype=tensor.float)
 
-    data=LSTMDataset_ByPat(file_path="~/Documents/Data/Full_MIMIC/Clean_data/")
-    dataloader=DataLoader(data,batch_size=100,shuffle=True,num_workers=2)
+    dataloader=DataLoader(data_train,batch_size=5000,shuffle=True,num_workers=2)
+    dataloader_val= DataLoader(data_val,batch_size=1000,shuffle=False)
 
-    mod=GRU_mean(data.meas_num,means_vec,device=torch.device("cpu"),imputation_mode="simple")
+    mod=GRU_mean(data_train.meas_num,means_vec,device,imputation_mode="simple")
     #mod.double()
 
-    optimizer=torch.optim.Adam(mod.parameters(), lr=0.005,weight_decay=0.001)
-    optimizer.zero_grad()
+    for epoch in range(epoch_max):
+        if self.timestep<50:
+            l_r=0.0005
+        elif self.timestep<95:
+            l_r=0.00015
+        else:
+            l_r=0.00005
+        optimizer=torch.optim.Adam(mod.parameters(),lr=l_r,weight_decay=L2)
+        optimizer.zero_grad()
 
-    criterion=nn.BCELoss()
+        criterion=nn.BCELoss()
+
+
+        for i_batch,sampled_batch in enumerate(dataloader):
+            optimizer.zero_grad()
+            target=sampled_batch[2].float().to(device)
+            pred=mod.forward(torch.transpose(sampled_batch[1].to(device),1,2)) #Feed as batchxtimexfeatures
+            loss=criterion(pred,target)
+            loss.backward()
+            optimizer.step()
+        with torch.no_grad():
+            loss_val=0
+            for i_val,batch_val in enumerate(dataloader_val):
+                target=batch_val[2].float().to(device)
+                pred=mod.forward(torch.transpose(batch_val[1].to(device),1,2)) #Feed as batchxtimexfeatures
+                loss_val+=roc_auc_score(target,pred)
+        auc_mean=loss_val/(i_val+1)
+        print(auc_mean)
+    outfile_path="./unique_model.pt"
+    torch.save(mod.state_dict(),path)
+    print("Model saved in the file "+outfile_path)
+
+    #Compute validation AUC curve
+    with torch.no_grad():
+        fpr,tpr,_ = roc_curve(mod.forward(torch.transpose(data_val.data_matrix.to(device),1,2)).cpu().detach().numpy(),data_val.tags.numpy())
+        roc_auc=auc(fpr,tpr)
+        plt.figure()
+        lw = 2
+        plt.plot(fpr, tpr, color='darkorange',
+        lw=lw, label='ROC curve (area = %0.2f)' % roc_auc)
+        plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver operating characteristic example')
+        plt.legend(loc="lower right")
+        plt.show()
+
+
+
+
     print('Start training')
     for i_batch,sampled_batch in enumerate(dataloader):
         optimizer.zero_grad()
@@ -220,31 +291,36 @@ class train_class(Trainable):
         self.mod.load_state_dict(torch.load(checkpoint_path))
         self.timestep=np.load(checkpoint_path+"_timestep.npy").item()
 
-ray.init(num_cpus=10,num_gpus=2)
+if __name__=="__main__":
+
+    opt=parser.parse_args()
+    if opt.unique:
+        return(train("cuda:0",opt.maxepochs,opt.L2))
+    else:
+        ray.init(num_cpus=10,num_gpus=2)
 
 
+        data_train=pin_in_object_store(LSTMDataset_ByPat(file_path="~/Data/MIMIC/"))
+        data_val=pin_in_object_store(LSTMDataset_ByPat(csv_file_serie="LSTM_tensor_val.csv",file_path="~/Data/MIMIC/",cov_path="LSTM_covariates_val",tag_path="LSTM_death_tags_val.csv"))
+        means_df=pd.Series.from_csv("~/Data/MIMIC/mean_features.csv")
+        means_vec=pin_in_object_store(torch.tensor(means_df.as_matrix(),dtype=torch.float))
 
-data_train=pin_in_object_store(LSTMDataset_ByPat(file_path="~/Data/MIMIC/"))
-data_val=pin_in_object_store(LSTMDataset_ByPat(csv_file_serie="LSTM_tensor_val.csv",file_path="~/Data/MIMIC/",cov_path="LSTM_covariates_val",tag_path="LSTM_death_tags_val.csv"))
-means_df=pd.Series.from_csv("~/Data/MIMIC/mean_features.csv")
-means_vec=pin_in_object_store(torch.tensor(means_df.as_matrix(),dtype=torch.float))
+        tune.register_trainable("my_class", train_class)
 
-tune.register_trainable("my_class", train_class)
+        hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="mean_accuracy",max_t=350,grace_period=15)
 
-hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="mean_accuracy",max_t=350,grace_period=15)
-
-exp={
-        'run':"my_class",
-        'repeat':30,
-        'stop':{"training_iteration":350},
-        'trial_resources':{
-                        "gpu":1,
-                        "cpu":1
-                    },
-        'config':{
-        "L2":lambda spec: 10**(3*random.random()-6)
-    }
- }
+        exp={
+                'run':"my_class",
+                'repeat':30,
+                'stop':{"training_iteration":350},
+                'trial_resources':{
+                                "gpu":1,
+                                "cpu":1
+                            },
+                'config':{
+                "L2":lambda spec: 10**(3*random.random()-6)
+            }
+         }
 
 
-tune.run_experiments({"GRU_simple_2layersclassif_350epochs":exp},scheduler=hyperband)
+         tune.run_experiments({"GRU_simple_2layersclassif_350epochs":exp},scheduler=hyperband)
