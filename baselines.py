@@ -88,12 +88,12 @@ class GRU_mean(nn.Module):
 
         observed_mask=(x==x) #1 if observed, 0 otherwise
         Delta=torch.zeros(x.size(),device=self.device) #
-        print(Delta.dtype)
-        print(observed_mask.dtype)
+        #print(Delta.dtype)
+        #print(observed_mask.dtype)
         for idt in range(1,n_t):
             a=torch.zeros((n_batch,x.size(2)),device=self.device).masked_scatter_(1-observed_mask[:,idt-1,:],Delta[:,idt-1,:])
             #a=(1-observed_mask[:,idt-1,:])*Delta[:,idt-1,:]
-            Delta[:,idt,:]=torch.ones((n_batch,x.size(2)))+a#(1-observed_mask[:,idt-1,:])*Delta[:,idt-1,:]
+            Delta[:,idt,:]=torch.ones((n_batch,x.size(2)),device=self.device)+a#(1-observed_mask[:,idt-1,:])*Delta[:,idt-1,:]
         return torch.cat((self.impute(x),observed_mask.float(),Delta),dim=2)
 
 class LSTMDataset_ByPat(Dataset):
@@ -137,7 +137,7 @@ class LSTMDataset_ByPat(Dataset):
 def train():
     #means_vec for imputation.
     means_df=pd.Series.from_csv("~/Documents/Data/Full_MIMIC/Clean_data/mean_features.csv")
-    means_vec=torch.tensor(means_df.as_matrix())
+    means_vec=torch.tensor(means_df.as_matrix(),dtype=tensor.float)
 
     data=LSTMDataset_ByPat(file_path="~/Documents/Data/Full_MIMIC/Clean_data/")
     dataloader=DataLoader(data,batch_size=100,shuffle=True,num_workers=2)
@@ -180,7 +180,7 @@ class train_class(Trainable):
         #Select learning rate depending on the epoch.
         if self.timestep<50:
             l_r=0.0005
-        elif self.timestep<75:
+        elif self.timestep<95:
             l_r=0.00015
         else:
             l_r=0.00005
@@ -227,24 +227,24 @@ ray.init(num_cpus=10,num_gpus=2)
 data_train=pin_in_object_store(LSTMDataset_ByPat(file_path="~/Data/MIMIC/"))
 data_val=pin_in_object_store(LSTMDataset_ByPat(csv_file_serie="LSTM_tensor_val.csv",file_path="~/Data/MIMIC/",cov_path="LSTM_covariates_val",tag_path="LSTM_death_tags_val.csv"))
 means_df=pd.Series.from_csv("~/Data/MIMIC/mean_features.csv")
-means_vec=pin_in_object_store(torch.tensor(means_df.as_matrix()))
+means_vec=pin_in_object_store(torch.tensor(means_df.as_matrix(),dtype=torch.float))
 
 tune.register_trainable("my_class", train_class)
 
-hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="mean_accuracy",max_t=150,grace_period=15)
+hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="mean_accuracy",max_t=350,grace_period=15)
 
 exp={
         'run':"my_class",
-        'repeat':50,
-        'stop':{"training_iteration":150},
+        'repeat':30,
+        'stop':{"training_iteration":350},
         'trial_resources':{
                         "gpu":1,
                         "cpu":1
                     },
         'config':{
-        "L2":lambda spec: 10**(4*random.random()-5)
+        "L2":lambda spec: 10**(3*random.random()-6)
     }
  }
 
 
-tune.run_experiments({"GRU_simple_2layersclassif":exp},scheduler=hyperband)
+tune.run_experiments({"GRU_simple_2layersclassif_350epochs":exp},scheduler=hyperband)

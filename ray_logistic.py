@@ -8,6 +8,7 @@ import numpy as np
 import ray
 import ray.tune as tune
 from ray.tune.hyperband import HyperBandScheduler
+from ray.tune.async_hyperband import AsuncHyperBandScheduler
 #from ray.tune.schedulers import AsyncHyperBandScheduler,HyperBandScheduler
 from ray.tune import Trainable, TrainingResult
 from ray.tune.util import pin_in_object_store, get_pinned_object
@@ -100,12 +101,15 @@ ray.init(num_cpus=10)
 
 
 
-latents=np.load(file_path)
-tags=pd.read_csv("~/Data/MIMIC/complete_death_tags_train.csv").sort_values("UNIQUE_ID")
+latents=np.load(file_path).T
+tags=pd.read_csv("~/Data/MIMIC/LSTM_death_tags_train.csv").sort_values("UNIQUE_ID")
 tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 
-latents_train, latents_test, tag_mat_train, tag_mat_test=train_test_split(latents,tag_mat,test_size=0.1,random_state=42)
-latents_train, latents_val, tag_mat_train, tag_mat_val=train_test_split(latents_train,tag_mat_train,test_size=0.2,random_state=43)
+print(tag_mat.shape)
+print(latents.shape)
+
+latents_train, latents_val, tag_mat_train, tag_mat_val=train_test_split(latents,tag_mat,test_size=0.2,random_state=42)
+#latents_train, latents_val, tag_mat_train, tag_mat_val=train_test_split(latents_train,tag_mat_train,test_size=0.2,random_state=43)
 
 print(latents_train.shape)
 print(tag_mat_val.shape)
@@ -114,7 +118,7 @@ data_val=pin_in_object_store(latent_dataset(latents_val,tag_mat_val))
 
 tune.register_trainable("my_class", train_class)
 
-hyperband=HyperBandScheduler(time_attr="timesteps_total",reward_attr="mean_accuracy",max_t=100)
+hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="mean_accuracy",max_t=100)
 
 exp={
         'run':"my_class",
@@ -125,4 +129,4 @@ exp={
     }
  }
 
-tune.run_experiments({"logistic_50lats_50samples":exp},scheduler=hyperband)
+tune.run_experiments({"logistic_70lats_mean2":exp},scheduler=hyperband)
