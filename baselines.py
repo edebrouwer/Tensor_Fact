@@ -20,18 +20,34 @@ from ray.tune.util import pin_in_object_store, get_pinned_object
 import os
 
 class GRU_mean(nn.Module):
-    def __init__(self,input_dim,mean_feats,device,latents=100):
+    def __init__(self,input_dim,mean_feats,device,latents=100,imputation_mode="mean"):
         #mean_feats should be a torch vector containing the computed means of each features for imputation.
         super(GRU_mean,self).__init__()
+        if imputation_mode=="simple":
+            self.imput="simple"
+            self.input_dim=3*input_dim
+        elif imputation_mode=="mean":
+            self.imput="mean"
+            self.input_dim=input_dim
+        else:
+            raise ValueError("Wrong imputation mode")
+
         self.mean_feats=mean_feats
-        self.layer1=nn.GRU(input_dim,latents,1,batch_first=True)
+        self.layer1=nn.GRU(self.input_dim,latents,1,batch_first=True)
         self.classif_layer1=nn.Linear(latents,100)
         self.classif_layer1bis=nn.Linear(100,100)
         self.classif_layer2=nn.Linear(100,1)
         self.device=device
+
     def forward(self,x):
         #x is a batch X  T x input_dim tensor
-        x=self.impute(x)
+
+        if self.imput=="mean":
+            x=self.impute(x)
+        elif self.imput=="simple":
+            x=self.impute_simple(x)
+        else:
+            raise ValueError("Not a valid imputation option")
         out,h_n=self.layer1(x)
         pred=F.relu(self.classif_layer1(h_n))
         pred=F.relu(self.classif_layer1bis(pred))
@@ -48,6 +64,20 @@ class GRU_mean(nn.Module):
         x_mean[non_nan_mask]=x[non_nan_mask]
         return(x_mean)
 
+    def impute_simple(self,x):
+        n_batch=x.size(0)
+        n_t=x.size(1)
+
+        observed_mask=(x==x) #1 if observed, 0 otherwise
+        Delta=torch.zeros(x.size()) #
+        print(Delta.dtype)
+        print(observed_mask.dtype)
+        for idt in range(1,n_t):
+            a=torch.zeros((n_batch,x.size(2))).masked_scatter_(1-observed_mask[:,idt-1,:],Delta[:,idt-1,:])
+            #a=(1-observed_mask[:,idt-1,:])*Delta[:,idt-1,:]
+            Delta[:,idt,:]=torch.ones((n_batch,x.size(2)))+a#(1-observed_mask[:,idt-1,:])*Delta[:,idt-1,:]
+        return torch.cat((x,observed_mask.float(),Delta),dim=2)
+
 class LSTMDataset_ByPat(Dataset):
     def __init__(self,csv_file_serie="LSTM_tensor_train.csv",file_path="~/Data/MIMIC/",cov_path="LSTM_covariates_train",tag_path="LSTM_death_tags_train.csv",transform=None):
         self.lab_short=pd.read_csv(file_path+csv_file_serie)
@@ -57,11 +87,11 @@ class LSTMDataset_ByPat(Dataset):
         idx_mat=self.lab_short[["PATIENT_IDX","LABEL_CODE","TIME_STAMP","VALUENORM"]].as_matrix()
 
         idx_tens=torch.LongTensor(idx_mat[:,:-1])
-        val_tens=torch.DoubleTensor(idx_mat[:,-1])
-        sparse_data=torch.sparse.DoubleTensor(idx_tens.t(),val_tens)
+        val_tens=torch.Tensor(idx_mat[:,-1])
+        sparse_data=torch.sparse.FloatTensor(idx_tens.t(),val_tens)
         self.data_matrix=sparse_data.to_dense()
 
-        self.data_matrix[self.data_matrix==0]=torch.tensor([np.nan]).double()
+        self.data_matrix[self.data_matrix==0]=torch.tensor([np.nan])
 
         #covariates
         df_cov=pd.read_csv(file_path+cov_path+".csv")
@@ -94,8 +124,8 @@ def train():
     data=LSTMDataset_ByPat(file_path="~/Documents/Data/Full_MIMIC/Clean_data/")
     dataloader=DataLoader(data,batch_size=100,shuffle=True,num_workers=2)
 
-    mod=GRU_mean(data.meas_num,means_vec)
-    mod.double()
+    mod=GRU_mean(data.meas_num,means_vec,device=torch.device("cpu"),imputation_mode="simple")
+    #mod.double()
 
     optimizer=torch.optim.Adam(mod.parameters(), lr=0.005,weight_decay=0.001)
     optimizer.zero_grad()
@@ -104,7 +134,7 @@ def train():
     print('Start training')
     for i_batch,sampled_batch in enumerate(dataloader):
         optimizer.zero_grad()
-        target=sampled_batch[2].double()
+        target=sampled_batch[2].float()
         print(sampled_batch[1].size())
         pred=mod.forward(torch.transpose(sampled_batch[1],1,2)) #Feed as batchxtimexfeatures
         loss=criterion(pred,target)
@@ -117,9 +147,9 @@ class train_class(Trainable):
     def _setup(self):
         self.device=torch.device("cuda:0")
         #means_vec for imputation.
-       
-        self.mod=GRU_mean(get_pinned_object(data_train).meas_num,get_pinned_object(means_vec),self.device)
-        self.mod.double()
+
+        self.mod=GRU_mean(get_pinned_object(data_train).meas_num,get_pinned_object(means_vec),self.device,imputation_mode="simple")
+        self.mod.float()
         self.mod.to(self.device)
 
         self.dataloader=DataLoader(get_pinned_object(data_train),batch_size=5000,shuffle=True,num_workers=2)
@@ -143,7 +173,7 @@ class train_class(Trainable):
 
         for i_batch,sampled_batch in enumerate(self.dataloader):
             optimizer.zero_grad()
-            target=sampled_batch[2].double().to(self.device)
+            target=sampled_batch[2].float().to(self.device)
             pred=self.mod.forward(torch.transpose(sampled_batch[1].to(self.device),1,2)) #Feed as batchxtimexfeatures
             loss=criterion(pred,target)
             loss.backward()
@@ -152,7 +182,7 @@ class train_class(Trainable):
         with torch.no_grad():
             loss_val=0
             for i_val,batch_val in enumerate(self.dataloader_val):
-                target=batch_val[2].double().to(self.device)
+                target=batch_val[2].float().to(self.device)
                 pred=self.mod.forward(torch.transpose(batch_val[1].to(self.device),1,2)) #Feed as batchxtimexfeatures
                 loss_val+=roc_auc_score(target,pred)
         auc_mean=loss_val/(i_val+1)
@@ -180,7 +210,7 @@ data_train=pin_in_object_store(LSTMDataset_ByPat(file_path="~/Data/MIMIC/"))
 data_val=pin_in_object_store(LSTMDataset_ByPat(csv_file_serie="LSTM_tensor_val.csv",file_path="~/Data/MIMIC/",cov_path="LSTM_covariates_val",tag_path="LSTM_death_tags_val.csv"))
 means_df=pd.Series.from_csv("~/Data/MIMIC/mean_features.csv")
 means_vec=pin_in_object_store(torch.tensor(means_df.as_matrix()))
-        
+
 tune.register_trainable("my_class", train_class)
 
 hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="mean_accuracy",max_t=150,grace_period=15)
@@ -198,4 +228,5 @@ exp={
     }
  }
 
-tune.run_experiments({"GRU_mean_2layersclassif":exp},scheduler=hyperband)
+
+tune.run_experiments({"GRU_simple_2layersclassif":exp},scheduler=hyperband)
