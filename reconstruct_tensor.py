@@ -23,25 +23,14 @@ if "macau" in file_path:
     print("Number of samples in this simulation is {}".format(N_samples))
 
     val_idx=true_tensor_val.values[:,:3]
- 
+
     mse=0
     num_lat=true_tensor["UNIQUE_ID"].nunique()
     num_feat=true_tensor["LABEL_CODE"].nunique()
     num_times=true_tensor["TIME_STAMP"].nunique()
-    reconstruct_sum=np.zeros((num_lat,num_feat,num_times))
-    for i in range(N_samples):
-        print(i)
-        latent_pat=np.loadtxt(file_path+str(N_latents)+"_macau-sample"+str(i+1)+"-U1-latents.csv",delimiter=",").T
-        latent_times=np.loadtxt(file_path+str(N_latents)+"_macau-sample"+str(i+1)+"-U3-latents.csv",delimiter=",").T
-        latent_feat=np.loadtxt(file_path+str(N_latents)+"_macau-sample"+str(i+1)+"-U2-latents.csv",delimiter=",").T
 
-        print("Einsum")
-        reconstructed_tensor=np.einsum('il,jl,kl->ijk',latent_pat,latent_feat,latent_times)
-        print("Built learnt tensor with shape{}".format(reconstructed_tensor.shape))
-
-        reconstruct_sum+=reconstructed_tensor
+    reconstruct_mean=predict_tensor(file_path,num_lat,num_feat,num_times,N_samples)
     
-    reconstruct_mean=reconstruct_sum/N_samples
     reconstructed_val=reconstruct_mean[val_idx[:,0].astype(int),val_idx[:,1].astype(int),val_idx[:,2].astype(int)]
     mse=np.mean((reconstructed_val-true_tensor_val.values[:,3])**2)
     print("MSE of the validation set is {}".format(mse))
@@ -49,7 +38,7 @@ if "macau" in file_path:
 
     i_pat=7873
     i_feat=19
-    
+
     latent_pat=np.load(file_path+"mean_pat_latent.npy").T
     latent_times=np.load(file_path+"mean_time_latent.npy").T
     latent_feat=np.load(file_path+"mean_feat_latent.npy").T
@@ -71,3 +60,21 @@ if "macau" in file_path:
     plt.scatter(true_series_val[:,0],true_series_val[:,1],label="validation samples")
     plt.legend()
     plt.savefig(file_path+"reconstruction_curves.pdf")
+
+
+    def predict_tensor(file_path,num_lat,num_feat,num_times,N_samples):
+        reconstruct_sum=np.zeros((num_lat,num_feat,num_times))
+        for i in range(N_samples):
+            print(i)
+            latent_pat=np.loadtxt(file_path+str(N_latents)+"_macau-sample"+str(i+1)+"-U1-latents.csv",delimiter=",").T
+            latent_times=np.loadtxt(file_path+str(N_latents)+"_macau-sample"+str(i+1)+"-U3-latents.csv",delimiter=",").T
+            latent_feat=np.loadtxt(file_path+str(N_latents)+"_macau-sample"+str(i+1)+"-U2-latents.csv",delimiter=",").T
+
+            print("Einsum")
+            reconstructed_tensor=np.einsum('il,jl,kl->ijk',latent_pat,latent_feat,latent_times)
+            print("Built learnt tensor with shape{}".format(reconstructed_tensor.shape))
+
+            reconstruct_sum+=reconstructed_tensor
+
+        reconstruct_mean=reconstruct_sum/N_samples
+        return(reconstruct_mean)
