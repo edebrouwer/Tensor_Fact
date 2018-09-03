@@ -69,14 +69,14 @@ class GRU_mean(nn.Module):
         n_t=x.size(1)
 
         observed_mask=(x==x) #1 if observed, 0 otherwise
-        Delta=torch.zeros(x.size()) #
+        Delta=torch.zeros(x.size(),device=self.device) #
         print(Delta.dtype)
         print(observed_mask.dtype)
         for idt in range(1,n_t):
-            a=torch.zeros((n_batch,x.size(2))).masked_scatter_(1-observed_mask[:,idt-1,:],Delta[:,idt-1,:])
+            a=torch.zeros((n_batch,x.size(2)),device=self.device).masked_scatter_(1-observed_mask[:,idt-1,:],Delta[:,idt-1,:])
             #a=(1-observed_mask[:,idt-1,:])*Delta[:,idt-1,:]
             Delta[:,idt,:]=torch.ones((n_batch,x.size(2)))+a#(1-observed_mask[:,idt-1,:])*Delta[:,idt-1,:]
-        return torch.cat((x,observed_mask.float(),Delta),dim=2)
+        return torch.cat((self.impute(x),observed_mask.float(),Delta),dim=2)
 
 class LSTMDataset_ByPat(Dataset):
     def __init__(self,csv_file_serie="LSTM_tensor_train.csv",file_path="~/Data/MIMIC/",cov_path="LSTM_covariates_train",tag_path="LSTM_death_tags_train.csv",transform=None):
