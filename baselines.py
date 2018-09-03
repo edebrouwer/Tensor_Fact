@@ -19,6 +19,24 @@ from ray.tune import Trainable, TrainingResult
 from ray.tune.util import pin_in_object_store, get_pinned_object
 import os
 
+class GRU_mod(nn.Module):
+    def __init__(self,input_dim,latents=100):
+        #mean_feats should be a torch vector containing the computed means of each features for imputation.
+        super(GRU_mean,self).__init__()
+
+        self.layer1=nn.GRU(self.input_dim,latents,1,batch_first=True)
+        self.classif_layer1=nn.Linear(latents,100)
+        self.classif_layer1bis=nn.Linear(100,100)
+        self.classif_layer2=nn.Linear(100,1)
+    def forward(self,x):
+        #x is a batch X  T x input_dim tensor
+        out,h_n=self.layer1(x)
+        pred=F.relu(self.classif_layer1(h_n))
+        pred=F.relu(self.classif_layer1bis(pred))
+        pred=F.sigmoid(self.classif_layer2(pred))
+        return(pred[0,:,0])
+
+
 class GRU_mean(nn.Module):
     def __init__(self,input_dim,mean_feats,device,latents=100,imputation_mode="mean"):
         #mean_feats should be a torch vector containing the computed means of each features for imputation.
