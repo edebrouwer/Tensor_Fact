@@ -22,7 +22,8 @@ class GRU_teach(nn.Module):
         self.device=device
         self.beta_layer=nn.Linear(x_dim,latents)
         self.GRU1=nn.GRUCell(2*y_dim,latents)
-        self.layer1=nn.Linear(latents,y_dim)
+        self.layer1=nn.Linear(latents,latents)
+        self.layer2=nn.Linear(latents,y_dim)
     def forward(self,x,y,y_mask):
         #x are the covariates and y are the observed samples with the missing mask
         #Dims are batch X input_dim X T for y
@@ -35,9 +36,10 @@ class GRU_teach(nn.Module):
             y_input[y_mask[:,:,t]]=y[:,:,t][y_mask[:,:,t]]
             y_interleaved=torch.stack((y_input,y_mask[:,:,t].float()),dim=2).view(y.size(0),2*y.size(1))
             h_t =self.GRU1(y_interleaved,h_t)
-            output[:,:,t]=self.layer1(h_t)
+            output[:,:,t]=self.layer2(F.relu(self.layer1(h_t)))
             y_input=output[:,:,t]
         return output
+
 
 class GRU_teach_dataset(Dataset):
     def __init__(self,csv_file_serie="LSTM_tensor_train.csv",file_path="~/Documents/Data/Full_MIMIC/Clean_data/",cov_path="LSTM_covariates_train.csv"):
