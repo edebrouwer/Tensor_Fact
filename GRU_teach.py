@@ -24,6 +24,9 @@ class GRU_teach(nn.Module):
         self.GRU1=nn.GRUCell(2*y_dim,latents)
         self.layer1=nn.Linear(latents,latents)
         self.layer2=nn.Linear(latents,y_dim)
+
+        self.classif_layer1=nn.Linear(latents,50)
+        self.classif_layer2=nn.Linear(50,1)
     def forward(self,x,y,y_mask):
         #x are the covariates and y are the observed samples with the missing mask
         #Dims are batch X input_dim X T for y
@@ -38,7 +41,10 @@ class GRU_teach(nn.Module):
             h_t =self.GRU1(y_interleaved,h_t)
             output[:,:,t]=self.layer2(F.relu(self.layer1(h_t)))
             y_input=output[:,:,t]
-        return output
+        #Classification task.
+        out_class=F.relu(self.classif_layer1(h_t))
+        out_class=F.sigmoid(self.classif_layer2(out_class))
+        return [output,out_class]
 
 
 class GRU_teach_dataset(Dataset):
@@ -87,7 +93,7 @@ def train():
 
             optimizer.zero_grad()
 
-            preds=mod.forward(sampled_batch[2],sampled_batch[0],sampled_batch[1])
+            [preds,class_pred]=mod.forward(sampled_batch[2],sampled_batch[0],sampled_batch[1])
 
             targets=sampled_batch[0]
             targets.masked_fill_(1-sampled_batch[1],0)
@@ -100,7 +106,7 @@ def train():
             print(loss.detach().numpy())
 
         with torch.no_grad():
-            preds=mod.forward(data_val.cov_u,data_val.data_matrix,data_val.observed_mask)
+            [preds,class_pred]=mod.forward(data_val.cov_u,data_val.data_matrix,data_val.observed_mask)
             targets=data_val.data_matrix
             targets.masked_fill_(1-data_val.observed_mask,0)
             preds.masked_fill_(1-data_val.observed_mask,0)
@@ -137,7 +143,7 @@ class train_class(Trainable):
 
         for i_batch,sampled_batch in enumerate(self.dataloader):
             optimizer.zero_grad()
-            preds=self.mod.forward(sampled_batch[2].to(self.device),sampled_batch[0].to(self.device),sampled_batch[1].to(self.device))
+            [preds,class_preds]=self.mod.forward(sampled_batch[2].to(self.device),sampled_batch[0].to(self.device),sampled_batch[1].to(self.device))
             targets=sampled_batch[0].to(self.device)
             targets.masked_fill_(1-sampled_batch[1].to(self.device),0)
             preds.masked_fill_(1-sampled_batch[1].to(self.device),0)
@@ -146,7 +152,7 @@ class train_class(Trainable):
             optimizer.step()
 
         with torch.no_grad():
-            preds=self.mod.forward(get_pinned_object(data_val).cov_u.to(self.device),get_pinned_object(data_val).data_matrix.to(self.device),get_pinned_object(data_val).observed_mask.to(self.device))
+            [preds,class_preds]=self.mod.forward(get_pinned_object(data_val).cov_u.to(self.device),get_pinned_object(data_val).data_matrix.to(self.device),get_pinned_object(data_val).observed_mask.to(self.device))
             targets=get_pinned_object(data_val).data_matrix.to(self.device)
             targets.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(self.device),0)
             preds.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(self.device),0)
