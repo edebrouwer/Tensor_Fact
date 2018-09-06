@@ -175,18 +175,18 @@ if __name__=="__main__":
 
     tune.register_trainable("my_class", train_class)
 
-    hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="neg_mean_loss",max_t=50,grace_period=15)
+    hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="neg_mean_loss",max_t=100,grace_period=15)
 
     exp={
             'run':"my_class",
             'repeat':10,
-            'stop':{"training_iteration":50},
+            'stop':{"training_iteration":100},
             'trial_resources':{
                             "gpu":1,
                             "cpu":1
                         },
             'config':{
-            "L2":lambda spec: 10**(3*random.random()-6)
+            "L2":lambda spec: 10**(6*random.random()-6)
         }
      }
 
