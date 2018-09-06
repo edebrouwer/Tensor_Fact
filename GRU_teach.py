@@ -48,7 +48,7 @@ class GRU_teach(nn.Module):
 
 
 class GRU_teach_dataset(Dataset):
-    def __init__(self,csv_file_serie="LSTM_tensor_train.csv",file_path="~/Documents/Data/Full_MIMIC/Clean_data/",cov_path="LSTM_covariates_train.csv"):
+    def __init__(self,csv_file_serie="LSTM_tensor_train.csv",file_path="~/Documents/Data/Full_MIMIC/Clean_data/",cov_path="LSTM_covariates_train.csv",tag_path="LSTM_death_tags_train.csv"):
         #Create a tensor whose missing entries (0) are NaNs.
         data_short=pd.read_csv(file_path+csv_file_serie)
         d_idx=dict(zip(data_short["UNIQUE_ID"].unique(),np.arange(data_short["UNIQUE_ID"].nunique())))
@@ -73,10 +73,16 @@ class GRU_teach_dataset(Dataset):
         df_cov.sort_index(inplace=True)
         self.cov_u=torch.tensor(df_cov.as_matrix()[:,1:]).to(torch.float)
 
+        #Death tags
+        tags_df=pd.read_csv(file_path+tag_path)
+        tags_df["PATIENT_IDX"]=tags_df["UNIQUE_ID"].map(d_idx)
+        tags_df.sort_values(by="PATIENT_IDX",inplace=True)
+        self.tags=tags_df["DEATHTAG"].as_matrix()
+
     def __len__(self):
         return self.data_matrix.size(0)
     def __getitem__(self,idx):
-        return([self.data_matrix[idx,:,:],self.observed_mask[idx,:,:],self.cov_u[idx,:]])
+        return([self.data_matrix[idx,:,:],self.observed_mask[idx,:,:],self.cov_u[idx,:],self.tags[idx]])
 
 def train():
     data_train=GRU_teach_dataset()
@@ -140,6 +146,7 @@ class train_class(Trainable):
         optimizer = torch.optim.Adam(self.mod.parameters(), lr=l_r, weight_decay=self.config["L2"])
 
         criterion=nn.MSELoss(reduce=False,size_average=False)
+        class_critertion=nn.BCELoss()
 
         for i_batch,sampled_batch in enumerate(self.dataloader):
             optimizer.zero_grad()
@@ -147,7 +154,7 @@ class train_class(Trainable):
             targets=sampled_batch[0].to(self.device)
             targets.masked_fill_(1-sampled_batch[1].to(self.device),0)
             preds.masked_fill_(1-sampled_batch[1].to(self.device),0)
-            loss=torch.sum(criterion(preds,targets))/torch.sum(sampled_batch[1].to(self.device)).float()
+            loss=(torch.sum(criterion(preds,targets))/torch.sum(sampled_batch[1].to(self.device)).float())+self.config["mixing_ratio"]*class_criterion(class_preds,sampled_batch[3].to(self.device))
             loss.backward()
             optimizer.step()
 
@@ -156,7 +163,7 @@ class train_class(Trainable):
             targets=get_pinned_object(data_val).data_matrix.to(self.device)
             targets.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(self.device),0)
             preds.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(self.device),0)
-            loss_val=(torch.sum(criterion(preds,targets))/torch.sum(get_pinned_object(data_val).observed_mask.to(self.device)).float()).cpu().detach().numpy()
+            loss_val=class_criterion(class_preds,sampled_batch[3].to(self.device))
             print("Validation Loss")
             print(loss_val)
 
@@ -192,7 +199,8 @@ if __name__=="__main__":
                             "cpu":1
                         },
             'config':{
-            "L2":lambda spec: 10**(6*random.random()-6)
+            "L2":lambda spec: 10**(3*random.random()-6),
+            "mixing_ratio":lambda spec : random.random()
         }
      }
 
