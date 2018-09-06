@@ -32,9 +32,11 @@ else:
     shutil.rmtree(str_dir)
     os.makedirs(str_dir)
 
-dir_path="~/Documents/Data/Full_MIMIC/Clean_data/"
+dir_path="~/Data/MIMIC/"
 if opt.segmented:
-    lab_short=pd.read_csv(dir_path+"LSTM_tensor_train.csv")
+    df1=pd.read_csv(dir_path+"LSTM_tensor_train.csv")
+    df2=pd.read_csv(dir_path+"LSTM_tensor_val.csv")
+    lab_short=pd.concat([df1,df2])
     lab_short_val=pd.read_csv(dir_path+"LSTM_tensor_train.csv")
     cov_u=pd.read_csv(dir_path+"LSTM_covariates_train.csv").as_matrix()[:,1:]
 else:

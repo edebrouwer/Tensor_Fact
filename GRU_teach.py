@@ -14,11 +14,12 @@ from ray.tune.async_hyperband import AsyncHyperBandScheduler
 #from ray.tune.schedulers import AsyncHyperBandScheduler,HyperBandScheduler
 from ray.tune import Trainable, TrainingResult
 from ray.tune.util import pin_in_object_store, get_pinned_object
-
+import random
 
 class GRU_teach(nn.Module):
-    def __init__(self,x_dim,y_dim,latents=100):
+    def __init__(self,device,x_dim,y_dim,latents=100):
         super(GRU_teach,self).__init__()
+        self.device=device
         self.beta_layer=nn.Linear(x_dim,latents)
         self.GRU1=nn.GRUCell(2*y_dim,latents)
         self.layer1=nn.Linear(latents,y_dim)
@@ -28,8 +29,8 @@ class GRU_teach(nn.Module):
         #         batch X x_dim for x
         #y_mask is the OBSERVED mask (1 if sample is observed)
         h_t=self.beta_layer(x)
-        y_input=torch.zeros(y.size(0),y.size(1))
-        output=torch.zeros(y.size()) #tensor of output samples.
+        y_input=torch.zeros(y.size(0),y.size(1)).to(self.device)
+        output=torch.zeros(y.size()).to(self.device) #tensor of output samples.
         for t in range(y.size(2)):
             y_input[y_mask[:,:,t]]=y[:,:,t][y_mask[:,:,t]]
             y_interleaved=torch.stack((y_input,y_mask[:,:,t].float()),dim=2).view(y.size(0),2*y.size(1))
@@ -73,7 +74,8 @@ def train():
     data_train=GRU_teach_dataset()
     data_val=GRU_teach_dataset(csv_file_serie="LSTM_tensor_val.csv",cov_path="LSTM_covariates_val.csv")
     dataloader=DataLoader(data_train,batch_size=5000,shuffle=True,num_workers=2)
-    mod=GRU_teach(data_train.cov_u.size(1),data_train.data_matrix.size(1))
+    device=torch.device("cpu")
+    mod=GRU_teach(device,data_train.cov_u.size(1),data_train.data_matrix.size(1))
     mod.float()
 
     optimizer=torch.optim.Adam(mod.parameters(),lr=0.005,weight_decay=0.00005)
@@ -109,7 +111,7 @@ class train_class(Trainable):
         self.device=torch.device("cuda:0")
         #means_vec for imputation.
 
-        mod=GRU_teach(get_pinned_object(data_train).cov_u.size(1),get_pinned_object(data_train).data_matrix.size(1))
+        self.mod=GRU_teach(self.device,get_pinned_object(data_train).cov_u.size(1),get_pinned_object(data_train).data_matrix.size(1))
         self.mod.float()
         self.mod.to(self.device)
 
@@ -133,24 +135,24 @@ class train_class(Trainable):
 
         for i_batch,sampled_batch in enumerate(self.dataloader):
             optimizer.zero_grad()
-            preds=self.mod.forward(sampled_batch[2],sampled_batch[0],sampled_batch[1])
-            targets=sampled_batch[0]
-            targets.masked_fill_(1-sampled_batch[1],0)
-            preds.masked_fill_(1-sampled_batch[1],0)
-            loss=torch.sum(criterion(preds,targets))/torch.sum(sampled_batch[1]).float()
+            preds=self.mod.forward(sampled_batch[2].to(self.device),sampled_batch[0].to(self.device),sampled_batch[1].to(self.device))
+            targets=sampled_batch[0].to(self.device)
+            targets.masked_fill_(1-sampled_batch[1].to(self.device),0)
+            preds.masked_fill_(1-sampled_batch[1].to(self.device),0)
+            loss=torch.sum(criterion(preds,targets))/torch.sum(sampled_batch[1].to(self.device)).float()
             loss.backward()
             optimizer.step()
 
         with torch.no_grad():
-            preds=self.mod.forward(get_pinned_object(data_val).cov_u,get_pinned_object(data_val).data_matrix,get_pinned_object(data_val).observed_mask)
-            targets=get_pinned_object(data_val).data_matrix
-            targets.masked_fill_(1-get_pinned_object(data_val).observed_mask,0)
-            preds.masked_fill_(1-get_pinned_object(data_val).observed_mask,0)
-            loss_val=torch.sum(criterion(preds,targets))/torch.sum(get_pinned_object(data_val).observed_mask).float()
+            preds=self.mod.forward(get_pinned_object(data_val).cov_u.to(self.device),get_pinned_object(data_val).data_matrix.to(self.device),get_pinned_object(data_val).observed_mask.to(self.device))
+            targets=get_pinned_object(data_val).data_matrix.to(self.device)
+            targets.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(self.device),0)
+            preds.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(self.device),0)
+            loss_val=(torch.sum(criterion(preds,targets))/torch.sum(get_pinned_object(data_val).observed_mask.to(self.device)).float()).cpu().detach().numpy()
             print("Validation Loss")
             print(loss_val)
 
-        return TrainingResult(mean_loss=loss_val,timesteps_this_iter=1)
+        return TrainingResult(mean_loss=np.sqrt(loss_val),timesteps_this_iter=1)
 
     def _save(self,checkpoint_dir):
         path=os.path.join(checkpoint_dir,"checkpoint")
@@ -187,4 +189,4 @@ if __name__=="__main__":
      }
 
 
-    tune.run_experiments({"GRU_simple_2layersclassif_350epochs":exp},scheduler=hyperband)
+    tune.run_experiments({"GRU_teach":exp},scheduler=hyperband)
