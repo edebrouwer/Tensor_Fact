@@ -53,8 +53,9 @@ class GRU_mod(nn.Module):
 
 
 class GRU_mean(nn.Module):
-    def __init__(self,input_dim,mean_feats,device,latents=100,imputation_mode="mean"):
+    def __init__(self,input_dim,mean_feats,device,cov_dim,latents=100,imputation_mode="mean"):
         #mean_feats should be a torch vector containing the computed means of each features for imputation.
+        #cov dim is the dimension of the covariates
         super(GRU_mean,self).__init__()
         if imputation_mode=="simple":
             self.imput="simple"
@@ -71,17 +72,18 @@ class GRU_mean(nn.Module):
         self.classif_layer1bis=nn.Linear(100,100)
         self.classif_layer2=nn.Linear(100,1)
         self.device=device
+        self.beta_layer=nn.Linear(cov_dim,latents)
 
-    def forward(self,x):
+    def forward(self,x,covs):
         #x is a batch X  T x input_dim tensor
-
+        h_0=self.beta_layer(covs)
         if self.imput=="mean":
             x=self.impute(x)
         elif self.imput=="simple":
             x=self.impute_simple(x)
         else:
             raise ValueError("Not a valid imputation option")
-        out,h_n=self.layer1(x)
+        out,h_n=self.layer1(x,h_0)
         pred=F.relu(self.classif_layer1(h_n))
         pred=F.relu(self.classif_layer1bis(pred))
         pred=F.sigmoid(self.classif_layer2(pred))
@@ -140,7 +142,7 @@ class LSTMDataset_ByPat(Dataset):
         tags_df=pd.read_csv(file_path+tag_path)
         tags_df["PATIENT_IDX"]=tags_df["UNIQUE_ID"].map(d_idx)
         tags_df.sort_values(by="PATIENT_IDX",inplace=True)
-        self.tags=tags_df["DEATHTAG"].as_matrix()
+        self.tags=torch.Tensor(tags_df["DEATHTAG"].values).float()
 
         #Imputation with CPD
         if latents_path is not None:
@@ -157,7 +159,7 @@ class LSTMDataset_ByPat(Dataset):
     def __len__(self):
         return self.pat_num
     def __getitem__(self,idx):
-        return([idx,self.data_matrix[idx,:,:],self.tags[idx]])#,self.train_tags[idx]])
+        return([idx,self.data_matrix[idx,:,:],self.tags[idx]],self.cov_u[idx,:])#,self.train_tags[idx]])
 
 def train(device,epoch_max,L2):
 
@@ -169,9 +171,9 @@ def train(device,epoch_max,L2):
     means_vec=torch.tensor(means_df.as_matrix(),dtype=torch.float)
 
     dataloader=DataLoader(data_train,batch_size=5000,shuffle=True,num_workers=2)
-    dataloader_val= DataLoader(data_val,batch_size=1000,shuffle=False)
+    #dataloader_val= DataLoader(data_val,batch_size=1000,shuffle=False)
 
-    mod=GRU_mean(data_train.meas_num,means_vec,device,imputation_mode="simple")
+    mod=GRU_mean(data_train.meas_num,means_vec,device,data_train.cov_u.size(1),imputation_mode="simple")
     mod.float()
     mod.to(device)
     #mod.double()
@@ -191,19 +193,17 @@ def train(device,epoch_max,L2):
 
         for i_batch,sampled_batch in enumerate(dataloader):
             optimizer.zero_grad()
-            target=sampled_batch[2].float().to(device)
-            pred=mod.forward(torch.transpose(sampled_batch[1].to(device),1,2)) #Feed as batchxtimexfeatures
+            target=sampled_batch[2].to(device)
+            pred=mod.forward(torch.transpose(sampled_batch[1].to(device),1,2),sampled_batch[3].to(device)) #Feed as batchxtimexfeatures
             loss=criterion(pred,target)
             loss.backward()
             optimizer.step()
         with torch.no_grad():
-            loss_val=0
-            for i_val,batch_val in enumerate(dataloader_val):
-                target=batch_val[2].float().to(device)
-                pred=mod.forward(torch.transpose(batch_val[1].to(device),1,2)) #Feed as batchxtimexfeatures
-                loss_val+=roc_auc_score(target,pred)
-        auc_mean=loss_val/(i_val+1)
-        print(auc_mean)
+            #for i_val,batch_val in enumerate(dataloader_val):
+            target=data_val.tags.to(device)
+            pred=mod.forward(torch.transpose(data_val.data_matrix.to(device),1,2),data_val.cov_u.to(device)) #Feed as batchxtimexfeatures
+            auc_loss=roc_auc_score(target,pred)
+        print(auc_loss)
     outfile_path="./unique_model.pt"
     torch.save(mod.state_dict(),outfile_path)
     print("Model saved in the file "+outfile_path)
@@ -232,12 +232,12 @@ class train_class(Trainable):
         self.device=torch.device("cuda:0")
         #means_vec for imputation.
 
-        self.mod=GRU_mean(get_pinned_object(data_train).meas_num,get_pinned_object(means_vec),self.device,imputation_mode="simple")
+        self.mod=GRU_mean(get_pinned_object(data_train).meas_num,get_pinned_object(means_vec),self.device,get_pinned_object(data_train).cov_u.size(1),imputation_mode="simple")
         self.mod.float()
         self.mod.to(self.device)
 
         self.dataloader=DataLoader(get_pinned_object(data_train),batch_size=5000,shuffle=True,num_workers=2)
-        self.dataloader_val= DataLoader(get_pinned_object(data_val),batch_size=1000,shuffle=False)
+        #self.dataloader_val= DataLoader(get_pinned_object(data_val),batch_size=1000,shuffle=False)
 
         self.timestep=0
     def _train(self):
@@ -257,19 +257,19 @@ class train_class(Trainable):
 
         for i_batch,sampled_batch in enumerate(self.dataloader):
             optimizer.zero_grad()
-            target=sampled_batch[2].float().to(self.device)
-            pred=self.mod.forward(torch.transpose(sampled_batch[1].to(self.device),1,2)) #Feed as batchxtimexfeatures
+            target=sampled_batch[2].to(self.device)
+            pred=self.mod.forward(torch.transpose(sampled_batch[1].to(self.device),1,2),sampled_batch[3].to(self.device)) #Feed as batchxtimexfeatures
             loss=criterion(pred,target)
             loss.backward()
             optimizer.step()
 
         with torch.no_grad():
             loss_val=0
-            for i_val,batch_val in enumerate(self.dataloader_val):
-                target=batch_val[2].float().to(self.device)
-                pred=self.mod.forward(torch.transpose(batch_val[1].to(self.device),1,2)) #Feed as batchxtimexfeatures
-                loss_val+=roc_auc_score(target,pred)
-        auc_mean=loss_val/(i_val+1)
+            #for i_val,batch_val in enumerate(self.dataloader_val):
+            target=get_pinned_object(data_val).tags.to(self.device)
+            pred=self.mod.forward(torch.transpose(get_pinned_object(data_val).data_matrix.to(self.device),1,2),get_pinned_object(data_val).cov_u.to(self.device)) #Feed as batchxtimexfeatures
+            loss_val=roc_auc_score(target,pred)
+        auc_mean=loss_val
 
         return TrainingResult(mean_accuracy=auc_mean,timesteps_this_iter=1)
 
