@@ -4,6 +4,8 @@ import argparse
 import torch
 import torch.nn as nn
 
+from sklearn.metrics import roc_auc_score
+
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
@@ -77,7 +79,7 @@ class GRU_teach_dataset(Dataset):
         tags_df=pd.read_csv(file_path+tag_path)
         tags_df["PATIENT_IDX"]=tags_df["UNIQUE_ID"].map(d_idx)
         tags_df.sort_values(by="PATIENT_IDX",inplace=True)
-        self.tags=tags_df["DEATHTAG"].as_matrix()
+        self.tags=torch.Tensor(tags_df["DEATHTAG"].values).float()
 
     def __len__(self):
         return self.data_matrix.size(0)
@@ -138,15 +140,17 @@ class train_class(Trainable):
         #Select learning rate depending on the epoch.
         if self.timestep<50:
             l_r=0.0005
-        elif self.timestep<95:
+        elif self.timestep<100:
             l_r=0.00015
-        else:
+        elif self.timestep<150:
             l_r=0.00005
+        else:
+            l_r=0.00001
 
         optimizer = torch.optim.Adam(self.mod.parameters(), lr=l_r, weight_decay=self.config["L2"])
 
         criterion=nn.MSELoss(reduce=False,size_average=False)
-        class_critertion=nn.BCELoss()
+        class_criterion=nn.BCELoss()
 
         for i_batch,sampled_batch in enumerate(self.dataloader):
             optimizer.zero_grad()
@@ -154,7 +158,7 @@ class train_class(Trainable):
             targets=sampled_batch[0].to(self.device)
             targets.masked_fill_(1-sampled_batch[1].to(self.device),0)
             preds.masked_fill_(1-sampled_batch[1].to(self.device),0)
-            loss=(torch.sum(criterion(preds,targets))/torch.sum(sampled_batch[1].to(self.device)).float())+self.config["mixing_ratio"]*class_criterion(class_preds,sampled_batch[3].to(self.device))
+            loss=(1-self.config["mixing_ratio"])*(torch.sum(criterion(preds,targets))/torch.sum(sampled_batch[1].to(self.device)).float())+self.config["mixing_ratio"]*class_criterion(class_preds,sampled_batch[3].to(self.device))
             loss.backward()
             optimizer.step()
 
@@ -163,11 +167,12 @@ class train_class(Trainable):
             targets=get_pinned_object(data_val).data_matrix.to(self.device)
             targets.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(self.device),0)
             preds.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(self.device),0)
-            loss_val=class_criterion(class_preds,sampled_batch[3].to(self.device))
+            #loss_val=class_criterion(class_preds,get_pinned_object(data_val).tags.to(self.device)).cpu().detach().numpy()
+            loss_val=roc_auc_score(get_pinned_object(data_val).tags,class_preds.cpu())
             print("Validation Loss")
             print(loss_val)
 
-        return TrainingResult(mean_loss=np.sqrt(loss_val),timesteps_this_iter=1)
+        return TrainingResult(mean_accuracy=loss_val,timesteps_this_iter=1)
 
     def _save(self,checkpoint_dir):
         path=os.path.join(checkpoint_dir,"checkpoint")
@@ -184,23 +189,23 @@ if __name__=="__main__":
     #train()
     ray.init(num_cpus=10,num_gpus=2)
     data_train=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/"))
-    data_val=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/",csv_file_serie="LSTM_tensor_val.csv",cov_path="LSTM_covariates_val.csv"))
+    data_val=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/",csv_file_serie="LSTM_tensor_val.csv",cov_path="LSTM_covariates_val.csv",tag_path="LSTM_death_tags_val.csv"))
 
     tune.register_trainable("my_class", train_class)
 
-    hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="neg_mean_loss",max_t=50,grace_period=15)
+    hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="mean_accuracy",max_t=200,grace_period=15)
 
     exp={
             'run':"my_class",
-            'repeat':10,
-            'stop':{"training_iteration":50},
+            'repeat':5,
+            'stop':{"training_iteration":200},
             'trial_resources':{
                             "gpu":1,
                             "cpu":1
                         },
             'config':{
-            "L2":lambda spec: 10**(3*random.random()-6),
-            "mixing_ratio":lambda spec : random.random()
+            "L2":lambda spec: 10**(3*random.random()-8),
+            "mixing_ratio":lambda spec : 1
         }
      }
 
