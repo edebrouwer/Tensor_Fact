@@ -112,6 +112,8 @@ class GRU_mean(nn.Module):
         return torch.cat((self.impute(x),observed_mask.float(),Delta),dim=2)
 
 
+
+
 class LSTMDataset_ByPat(Dataset):
     def __init__(self,csv_file_serie="LSTM_tensor_train.csv",file_path="~/Data/MIMIC/",cov_path="LSTM_covariates_train",tag_path="LSTM_death_tags_train.csv",transform=None,latents_path=None):
         self.lab_short=pd.read_csv(file_path+csv_file_serie)
