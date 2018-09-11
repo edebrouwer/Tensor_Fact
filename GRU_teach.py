@@ -203,7 +203,7 @@ class train_class(Trainable):
 if __name__=="__main__":
 
     #train()
-    ray.init(num_cpus=10,num_gpus=2)
+    ray.init(num_cpus=10,num_gpus=1)
     data_train=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/"))
     data_val=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/",csv_file_serie="LSTM_tensor_val.csv",cov_path="LSTM_covariates_val.csv",tag_path="LSTM_death_tags_val.csv"))
 
@@ -220,7 +220,7 @@ if __name__=="__main__":
                             "cpu":1
                         },
             'config':{
-            "L2":lambda spec: 10**(3*random.random()-8),
+            "L2":lambda spec: 10**(3*random.random()-10),
             "mixing_ratio":lambda spec : 1
         }
      }
