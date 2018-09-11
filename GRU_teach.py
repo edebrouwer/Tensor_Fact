@@ -22,7 +22,10 @@ class GRU_teach(nn.Module):
     def __init__(self,device,x_dim,y_dim,latents=100):
         super(GRU_teach,self).__init__()
         self.device=device
-        self.beta_layer=nn.Linear(x_dim,latents)
+
+        self.beta_mu_layer=nn.Linear(x_dim,latents)
+        self.beta_sigma_layer=nn.Linear(x_dim,latents)
+
         self.GRU1=nn.GRUCell(2*y_dim,latents)
         self.layer1=nn.Linear(latents,latents)
         self.layer2=nn.Linear(latents,y_dim)
@@ -34,7 +37,12 @@ class GRU_teach(nn.Module):
         #Dims are batch X input_dim X T for y
         #         batch X x_dim for x
         #y_mask is the OBSERVED mask (1 if sample is observed)
-        h_t=self.beta_layer(x)
+        #h_t=self.beta_layer(x)
+        mu_0=self.beta_mu_layer(x)
+        log_std=self.beta_sigma_layer(x)
+
+        h_t=self.reparametrize(mu_0,log_std)
+        
         y_input=torch.zeros(y.size(0),y.size(1)).to(self.device)
         output=torch.zeros(y.size()).to(self.device) #tensor of output samples.
         for t in range(y.size(2)):
@@ -47,6 +55,14 @@ class GRU_teach(nn.Module):
         out_class=F.relu(self.classif_layer1(h_t))
         out_class=F.sigmoid(self.classif_layer2(out_class))
         return [output,out_class]
+
+    def reparametrize(self,mu,logvar):
+        if self.training:
+            std = logvar.mul(0.5).exp_()
+            eps = Variable(std.data.new(std.size()).normal_())
+            return eps.mul(std).add_(mu)
+        else:
+            return mu
 
 
 class GRU_teach_dataset(Dataset):
