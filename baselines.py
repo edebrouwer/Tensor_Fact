@@ -76,7 +76,7 @@ class GRU_mean(nn.Module):
 
     def forward(self,x,covs):
         #x is a batch X  T x input_dim tensor
-        h_0=self.beta_layer(covs)
+        h_0=self.beta_layer(covs).unsqueeze(0)
         if self.imput=="mean":
             x=self.impute(x)
         elif self.imput=="simple":
@@ -136,7 +136,7 @@ class LSTMDataset_ByPat(Dataset):
         df_cov["PATIENT_IDX"]=df_cov["UNIQUE_ID"].map(d_idx)
         df_cov.set_index("PATIENT_IDX",inplace=True)
         df_cov.sort_index(inplace=True)
-        self.cov_u=torch.tensor(df_cov.as_matrix()[:,1:]).to(torch.double)
+        self.cov_u=torch.tensor(df_cov.as_matrix()[:,1:]).float()
 
         #Death tags
         tags_df=pd.read_csv(file_path+tag_path)
@@ -159,7 +159,7 @@ class LSTMDataset_ByPat(Dataset):
     def __len__(self):
         return self.pat_num
     def __getitem__(self,idx):
-        return([idx,self.data_matrix[idx,:,:],self.tags[idx]],self.cov_u[idx,:])#,self.train_tags[idx]])
+        return([idx,self.data_matrix[idx,:,:],self.tags[idx],self.cov_u[idx,:]])#,self.train_tags[idx]])
 
 def train(device,epoch_max,L2):
 
