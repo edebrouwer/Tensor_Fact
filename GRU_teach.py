@@ -48,7 +48,7 @@ class GRU_teach(nn.Module):
         log_std=self.beta_sigma_layer2(F.tanh(self.beta_sigma_layer(x)))
 
         h_t=self.reparametrize(mu_0,log_std)
-        
+
         y_input=torch.zeros(y.size(0),y.size(1)).to(self.device)
         output=torch.zeros(y.size()).to(self.device) #tensor of output samples.
         for t in range(y.size(2)):
@@ -237,11 +237,11 @@ if __name__=="__main__":
             'trial_resources':{
                             "gpu":1,
                             "cpu":1
-                        }#,
-           # 'config':{
-          #  "L2":lambda spec: 10**(3*random.random()-10),
-         #   "mixing_ratio":lambda spec : 0.1*random.random()+0.9
-        #}
+                        }
+            'config':{
+            "L2":lambda spec: 10**(3*random.random()-8),
+            "mixing_ratio":lambda spec : random.random()
+        }
      }
     algo=HyperOptSearch(space,reward_attr="mean_accuracy")
 

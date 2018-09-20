@@ -330,6 +330,28 @@ d_std=dict(complete_tensor_nocov.groupby("LABEL_CODE")["VALUENUM"].std())
 complete_tensor_nocov["STD"]=complete_tensor_nocov["LABEL_CODE"].map(d_std)
 complete_tensor_nocov["VALUENORM"]=(complete_tensor_nocov["VALUENUM"]-complete_tensor_nocov["MEAN"])/complete_tensor_nocov["STD"]
 
+#Duration vector for each patient
+unique_id_dict=pd.read_csv(outfile_path+"UNIQUE_ID_dict.csv")
+hadm_ids=unique_id_dict["HADM_ID"]
+admissions=pd.read_csv(file_path+"Admissions_processed.csv")
+adm=admissions.loc[admissions["HADM_ID"].isin(hadm_ids)].copy() #Select the patients selected earlier.
+
+#We create a new vector for the duration stay.
+adm["admit"]=pd.to_datetime(adm["ADMITTIME"])
+adm["disc"]=pd.to_datetime(adm["DISCHTIME"])
+adm["duration"]=adm["disc"]-adm["admit"]
+adm["duration_days"]=adm["duration"].dt.days
+
+d=unique_id_dict[["HADM_ID","UNIQUE_ID"]].set_index("HADM_ID").to_dict()["UNIQUE_ID"]
+adm["UNIQUE_ID"]=adm["HADM_ID"].map(d)
+
+durations_df=adm[["UNIQUE_ID","duration_days"]].copy()
+durations_df.sort_values(by="UNIQUE_ID",inplace=True)
+durations_df.to_csv(outfile_path+"complete_durations_vec.csv")
+
+
+
+##_______________________________________TRAIN_VALIDATION_SPLIT_____________________________________
 ### Train-Validation-Test split
 #Random sampling
 
