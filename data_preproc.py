@@ -256,24 +256,24 @@ complete_df10=complete_df10.drop(complete_df10.loc[complete_df10["HADM_ID"].isin
 
 
 #SAPSII data
-saps=pd.read_csv(file_path+'saps2.csv')
-valid_hadm_id=complete_df["HADM_ID"].unique()
-saps=saps.loc[saps["hadm_id"].isin(list(valid_hadm_id))].copy()
-saps["HADM_ID"]=saps["hadm_id"]
-saps.head()
+#saps=pd.read_csv(file_path+'saps2.csv')
+#valid_hadm_id=complete_df["HADM_ID"].unique()
+#saps=saps.loc[saps["hadm_id"].isin(list(valid_hadm_id))].copy()
+#saps["HADM_ID"]=saps["hadm_id"]
+#saps.head()
 
-saps["SUM_score"]=saps[[ 'hr_score', 'sysbp_score', 'temp_score', 'pao2fio2_score','uo_score', 'bun_score', 'wbc_score', 'potassium_score', 'sodium_score','bicarbonate_score', 'bilirubin_score', 'gcs_score']].sum(axis=1)
-saps["X"]=-7.7631 + 0.0737 * saps["SUM_score"] + 0.9971 * (np.log(saps["SUM_score"] + 1))
-saps["PROB"]=np.exp(saps["X"])/(1+np.exp(saps["X"]))
+#saps["SUM_score"]=saps[[ 'hr_score', 'sysbp_score', 'temp_score', 'pao2fio2_score','uo_score', 'bun_score', 'wbc_score', 'potassium_score', 'sodium_score','bicarbonate_score', 'bilirubin_score', 'gcs_score']].sum(axis=1)
+#saps["X"]=-7.7631 + 0.0737 * saps["SUM_score"] + 0.9971 * (np.log(saps["SUM_score"] + 1))
+#saps["PROB"]=np.exp(saps["X"])/(1+np.exp(saps["X"]))
 
-saps_death=pd.merge(death_tags_df,saps,on="HADM_ID")
-y_pred=np.array(saps_death["PROB"])
-y_pred_full=np.array(saps_death["sapsii_prob"])
-y=np.array(saps_death["DEATHTAG"])
+#saps_death=pd.merge(death_tags_df,saps,on="HADM_ID")
+#y_pred=np.array(saps_death["PROB"])
+#y_pred_full=np.array(saps_death["sapsii_prob"])
+#y=np.array(saps_death["DEATHTAG"])
 
-from sklearn.metrics import roc_auc_score
-print(roc_auc_score(y,y_pred))
-print(roc_auc_score(y,y_pred_full))
+#from sklearn.metrics import roc_auc_score
+#print(roc_auc_score(y,y_pred))
+#print(roc_auc_score(y,y_pred_full))
 
 
 # Dataframe creation for Tensor Decomposition

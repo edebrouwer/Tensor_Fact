@@ -9,22 +9,28 @@ from sklearn.metrics import roc_auc_score
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
+from torch.autograd import Variable
 
 import ray
 import ray.tune as tune
-from ray.tune.async_hyperband import AsyncHyperBandScheduler
+from ray.tune.schedulers import AsyncHyperBandScheduler
 #from ray.tune.schedulers import AsyncHyperBandScheduler,HyperBandScheduler
-from ray.tune import Trainable, TrainingResult
+from ray.tune import Trainable#, TrainingResult
 from ray.tune.util import pin_in_object_store, get_pinned_object
 import random
+
+from hyperopt import hp
+from ray.tune.suggest import HyperOptSearch
 
 class GRU_teach(nn.Module):
     def __init__(self,device,x_dim,y_dim,latents=100):
         super(GRU_teach,self).__init__()
         self.device=device
 
-        self.beta_mu_layer=nn.Linear(x_dim,latents)
-        self.beta_sigma_layer=nn.Linear(x_dim,latents)
+        self.beta_mu_layer=nn.Linear(x_dim,100)
+        self.beta_mu_layer2=nn.Linear(100,latents)
+        self.beta_sigma_layer=nn.Linear(x_dim,100)
+        self.beta_sigma_layer2=nn.Linear(100,latents)
 
         self.GRU1=nn.GRUCell(2*y_dim,latents)
         self.layer1=nn.Linear(latents,latents)
@@ -38,8 +44,8 @@ class GRU_teach(nn.Module):
         #         batch X x_dim for x
         #y_mask is the OBSERVED mask (1 if sample is observed)
         #h_t=self.beta_layer(x)
-        mu_0=self.beta_mu_layer(x)
-        log_std=self.beta_sigma_layer(x)
+        mu_0=self.beta_mu_layer2(F.tanh(self.beta_mu_layer(x)))
+        log_std=self.beta_sigma_layer2(F.tanh(self.beta_sigma_layer(x)))
 
         h_t=self.reparametrize(mu_0,log_std)
         
@@ -49,7 +55,7 @@ class GRU_teach(nn.Module):
             y_input[y_mask[:,:,t]]=y[:,:,t][y_mask[:,:,t]]
             y_interleaved=torch.stack((y_input,y_mask[:,:,t].float()),dim=2).view(y.size(0),2*y.size(1))
             h_t =self.GRU1(y_interleaved,h_t)
-            output[:,:,t]=self.layer2(F.relu(self.layer1(h_t)))
+            output[:,:,t]=self.layer2(F.tanh(self.layer1(h_t)))
             y_input=output[:,:,t]
         #Classification task.
         out_class=F.relu(self.classif_layer1(h_t))
@@ -97,6 +103,7 @@ class GRU_teach_dataset(Dataset):
         tags_df.sort_values(by="PATIENT_IDX",inplace=True)
         self.tags=torch.Tensor(tags_df["DEATHTAG"].values).float()
 
+        assert(self.tags.size(0)==self.cov_u.size(0))
     def __len__(self):
         return self.data_matrix.size(0)
     def __getitem__(self,idx):
@@ -188,7 +195,14 @@ class train_class(Trainable):
             print("Validation Loss")
             print(loss_val)
 
-        return TrainingResult(mean_accuracy=loss_val,timesteps_this_iter=1)
+            [preds,class_preds]=self.mod.forward(get_pinned_object(data_test).cov_u.to(self.device),get_pinned_object(data_test).data_matrix.to(self.device),get_pinned_object(data_test).observed_mask.to(self.device))
+            targets=get_pinned_object(data_test).data_matrix.to(self.device)
+            targets.masked_fill_(1-get_pinned_object(data_test).observed_mask.to(self.device),0)
+            preds.masked_fill_(1-get_pinned_object(data_test).observed_mask.to(self.device),0)
+            #loss_val=class_criterion(class_preds,get_pinned_object(data_val).tags.to(self.device)).cpu().detach().numpy()
+            loss_test=roc_auc_score(get_pinned_object(data_test).tags,class_preds.cpu())
+
+        return {'mean_accuracy':loss_val,'timesteps_this_iter':1,'test_auc':loss_test}
 
     def _save(self,checkpoint_dir):
         path=os.path.join(checkpoint_dir,"checkpoint")
@@ -201,29 +215,36 @@ class train_class(Trainable):
 
 
 if __name__=="__main__":
-
     #train()
-    ray.init(num_cpus=10,num_gpus=1)
-    data_train=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/"))
-    data_val=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/",csv_file_serie="LSTM_tensor_val.csv",cov_path="LSTM_covariates_val.csv",tag_path="LSTM_death_tags_val.csv"))
+    ray.init(num_cpus=10,num_gpus=2)
+    data_train=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/Clean_data/"))
+    data_val=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/Clean_data/",csv_file_serie="LSTM_tensor_val.csv",cov_path="LSTM_covariates_val.csv",tag_path="LSTM_death_tags_val.csv"))
+    data_test=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/Clean_data/",csv_file_serie="LSTM_tensor_test.csv",cov_path="LSTM_covariates_test.csv",tag_path="LSTM_death_tags_test.csv"))
+
 
     tune.register_trainable("my_class", train_class)
 
     hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="mean_accuracy",max_t=200,grace_period=15)
 
+    space= {
+            'L2':hp.loguniform('L2',-2.3*5,-2.3*9),
+            'mixing_ratio':hp.uniform('mixing_ratio',0.9,1)
+            }
     exp={
             'run':"my_class",
-            'repeat':5,
+            'num_samples':50,
             'stop':{"training_iteration":200},
             'trial_resources':{
                             "gpu":1,
                             "cpu":1
-                        },
-            'config':{
-            "L2":lambda spec: 10**(3*random.random()-10),
-            "mixing_ratio":lambda spec : 1
-        }
+                        }#,
+           # 'config':{
+          #  "L2":lambda spec: 10**(3*random.random()-10),
+         #   "mixing_ratio":lambda spec : 0.1*random.random()+0.9
+        #}
      }
+    algo=HyperOptSearch(space,reward_attr="mean_accuracy")
 
+    tune.run_experiments({"GRU_teach":exp},search_alg=algo,scheduler=hyperband)
 
-    tune.run_experiments({"GRU_teach":exp},scheduler=hyperband)
+    print("Finished with the simulations")
