@@ -6,7 +6,7 @@ import random
 import numpy as np
 import ray
 import ray.tune as tune
-from ray.tune.async_hyperband import AsyncHyperBandScheduler
+from ray.tune.hyperband import HyperBandScheduler
 #from ray.tune.schedulers import AsyncHyperBandScheduler,HyperBandScheduler
 from ray.tune import Trainable, TrainingResult
 from ray.tune.util import pin_in_object_store, get_pinned_object
@@ -25,21 +25,23 @@ from MLP_class import MLP_class_mod, latent_dataset
 
 import os
 import shutil
-import sys
-import pandas as pd
+
 
 class train_class(Trainable):
     def _setup(self):
         self.device=torch.device("cuda:0")
-        #mod_opt={'type':"plain_fact",'cov':False,'latents':20}
-
+        mod_opt={'type':"plain_fact",'cov':False,'latents':20}
+        self.nfolds=self.config["nfolds"]
         #data_train=TensorFactDataset(csv_file_serie="complete_tensor_train1.csv",cov_path="complete_covariates")
+        self.mod=[]
+        self.dataloader=[]
+        self.data_val=get_pinned_object(data_val)
+        for fold in folds:
+            self.mod+=[MLP_class_mod(get_pinned_object(data_train)[fold].get_dim())]
+        #self.mod=MLP_class_mod(get_pinned_object(data_train).get_dim())
 
-        self.mod=MLP_class_mod(get_pinned_object(data_train).get_dim())
-        self.mod.float()
-
-        self.dataloader = DataLoader(get_pinned_object(data_train),batch_size=5000,shuffle=True,num_workers=2)
-        self.dataloader_val= DataLoader(get_pinned_object(data_val),batch_size=len(get_pinned_object(data_val)),shuffle=False)
+            self.dataloader += DataLoader(get_pinned_object(data_train),batch_size=5000,shuffle=True,num_workers=2)
+            self.dataloader_val += DataLoader(get_pinned_object(data_val),batch_size=1000,shuffle=False)
         #self.dataloader=DataLoader(data_train,batch_size=65000,shuffle=True,num_workers=2)
         self.timestep=0
         print("SETUUUUP")
@@ -57,76 +59,111 @@ class train_class(Trainable):
         else:
             l_r=0.0005
 
-        optimizer = torch.optim.Adam(self.mod.parameters(), lr=l_r, weight_decay=self.config["L2"])
+        auc_mean_folds=0
+        for fold in self.nfolds:
+            optimizer = torch.optim.Adam(self.mod[fold].parameters(), lr=l_r, weight_decay=self.config["L2"])
 
-        criterion=nn.BCELoss()
-        total_loss=0
-        for idx, sampled_batch in enumerate(self.dataloader):
-            optimizer.zero_grad()
-            
-            target=sampled_batch[1].float()
-            preds=self.mod.fwd(sampled_batch[0].float())
-            loss = criterion(preds, target)
-            loss.backward()
-            optimizer.step()
+            criterion=nn.BCELoss()
+            total_loss=0
+            for idx, sampled_batch in enumerate(self.dataloader[fold]):
+                optimizer.zero_grad()
+                optimizer_w.zero_grad()
+                target=sampled_batch[1]
+                preds=self.mod[fold].fwd(sampled_batch[0])
+                loss = criterion(preds, target)
+                loss.backward()
+                optimizer.step()
 
-        with torch.no_grad():
-            loss_val=0
-            for i_val,batch_val in enumerate(self.dataloader_val):
-                target=batch_val[1].float()
-                preds=self.mod.fwd(batch_val[0].float())
+            with torch.no_grad():
+                loss_val=0
+                target=self.data_val[fold].tags
+                preds=self.mod[fold].fwd(self.data_val[fold].latents)
                 loss_val+=roc_auc_score(target,preds)
-        auc_mean=loss_val/(i_val+1)
-        #rmse_val_loss_computed=(np.sqrt(loss_val.detach().cpu().numpy()/(i_val+1)))
+                auc_mean=loss_val
+            #rmse_val_loss_computed=(np.sqrt(loss_val.detach().cpu().numpy()/(i_val+1)))
+            auc_mean_folds+=auc_mean
 
-        return TrainingResult(mean_accuracy=auc_mean,timesteps_this_iter=1)
+        return TrainingResult(mean_accuracy=(auc_mean_folds/self.nfolds),timesteps_this_iter=1)
 
     def _save(self,checkpoint_dir):
-        path=os.path.join(checkpoint_dir,"checkpoint")
-        torch.save(self.mod.state_dict(),path)
+        path_list=[]
+        for fold in self.nfolds:
+            name="chekpoint_fold"+str(fold)
+            path=os.path.join(checkpoint_dir,name)
+            path_list+=[path]
+            torch.save(self.mod.state_dict(),path)
         print("SAVIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIING")
         #raise Exception()
         #torch.cuda.empty_cache()
         np.save(path+"_timestep.npy",self.timestep)
-        return path
+        return path_list
     def _restore(self,checkpoint_path):
         print("LOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADING")
-        self.mod.load_state_dict(torch.load(checkpoint_path))
-        self.timestep=np.load(checkpoint_path+"_timestep.npy").item()
+        for fold in self.nfolds:
+            self.mod[fold].load_state_dict(torch.load(checkpoint_path[fold]))
+        self.timestep=np.load(checkpoint_path[fold]+"_timestep.npy").item()
+
+
+
 
 file_path=sys.argv[1:][0] # This file should contain a numpy array with the latents and the label as first columnself.
 
-ray.init(num_cpus=10)
-
-
-
 
 latents=np.load(file_path)
-n_train=pd.read_csv("~/Data/MIMIC/LSTM_tensor_train.csv")["UNIQUE_ID"].nunique()
-latents_train=latents[:n_train,:]
-latents_val=latents[n_train:,:]
+tags=pd.read_csv("~/Data/MIMIC/complete_death_tags.csv").sort_values("UNIQUE_ID")
+tag_mat=tags[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 
-
-tags_train=pd.read_csv("~/Data/MIMIC/LSTM_death_tags_train.csv").sort_values("UNIQUE_ID")
-tag_mat_train=tags_train[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
-
-tags_val=pd.read_csv("~/Data/MIMIC/LSTM_death_tags_val.csv").sort_values("UNIQUE_ID")
-tag_mat_val=tags_val[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
+latents_train, latents_test, tag_mat_train, tag_mat_test=train_test_split(latents,tag_mat,test_size=0.1,random_state=42)
+latents_train, latents_val, tag_mat_train, tag_mat_val=train_test_split(latents_train,tag_mat_train,test_size=0.1,random_state=43)
 
 data_train=pin_in_object_store(latent_dataset(latents_train,tag_mat_train))
 data_val=pin_in_object_store(latent_dataset(latents_val,tag_mat_val))
 
 tune.register_trainable("my_class", train_class)
 
-hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="mean_accuracy",max_t=100)
+hyperband=HyperBandScheduler(time_attr="timesteps_total",reward_attr="mean_accuracy",max_t=100)
 
 exp={
         'run':"my_class",
         'repeat':50,
-        'stop':{"training_iteration":100},
+        'stop':{"training_iteration":1},
         'config':{
-        "L2":lambda spec: 10**(5*random.random()-6)
+        "L2":lambda spec: 10**(8*random.random()-4)
     }
  }
 
-tune.run_experiments({"logistic_pca_50samples":exp},scheduler=hyperband)
+tune.run_experiments({"Classification_example":exp},scheduler=hyperband)
+
+
+
+def run_ray_logistic(latents_path,tags,kf,idx):
+
+    ray.init(num_cpus=10)
+    data_train_list=[]
+    data_val_list=[]
+    for train_idx, val_idx in kf.split(idx)
+        train_idx=idx[train_idx] #Indexes from the full tensor.
+        val_idx=idx[val_idx] #Indexes from the full tensor.
+
+        latents_train, latents_val=Macau_PCA_samples(dir_path=latents_path,idx_train=train_idx,idx_val=val_idx)
+        data_train_list+=[latent_dataset(latents_train,tags[train_idx,:])]
+        data_val_list+=[latent_dataset(latents_val,tags[val_idx,:])]
+
+    data_train=pin_in_object_store(data_train_list)
+    data_val=pin_in_object_store(data_val_list)
+
+    tune.register_trainable("my_class", train_class)
+
+    hyperband=HyperBandScheduler(time_attr="timesteps_total",reward_attr="mean_accuracy",max_t=100)
+
+    exp={
+            'run':"my_class",
+            'repeat':50,
+            'stop':{"training_iteration":1},
+            'config':{
+            "L2":lambda spec: 10**(8*random.random()-4),
+            "nfold":kf.get_n_splits()
+        }
+     }
+
+    tune.run_experiments({log_name:exp},scheduler=hyperband)

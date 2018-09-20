@@ -42,7 +42,7 @@ class GRU_teach(nn.Module):
         log_std=self.beta_sigma_layer(x)
 
         h_t=self.reparametrize(mu_0,log_std)
-        
+
         y_input=torch.zeros(y.size(0),y.size(1)).to(self.device)
         output=torch.zeros(y.size()).to(self.device) #tensor of output samples.
         for t in range(y.size(2)):
@@ -203,7 +203,7 @@ class train_class(Trainable):
 if __name__=="__main__":
 
     #train()
-    ray.init(num_cpus=10,num_gpus=1)
+    ray.init(num_cpus=10,num_gpus=2)
     data_train=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/"))
     data_val=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/",csv_file_serie="LSTM_tensor_val.csv",cov_path="LSTM_covariates_val.csv",tag_path="LSTM_death_tags_val.csv"))
 
@@ -220,8 +220,8 @@ if __name__=="__main__":
                             "cpu":1
                         },
             'config':{
-            "L2":lambda spec: 10**(3*random.random()-10),
-            "mixing_ratio":lambda spec : 1
+            "L2":lambda spec: 10**(3*random.random()-8),
+            "mixing_ratio":lambda spec : random.random()
         }
      }
 

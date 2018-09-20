@@ -66,8 +66,8 @@ class MLP_class_mod(nn.Module):
 
 class latent_dataset(Dataset):
     def __init__(self,latents,tags):
-        self.latents=latents
-        self.tags=tags.astype(float)
+        self.latents=torch.Tensor(latents)
+        self.tags=torch.Tensor(tags).float()
     def __len__(self):
         return(self.latents.shape[0])
     def __getitem__(self,idx):
