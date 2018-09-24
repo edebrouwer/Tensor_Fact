@@ -62,7 +62,7 @@ def run_macau(num_latents,num_samples,num_burnin,tensor,covariates):
     print(cov_u.shape)
     print(cov_t.shape)
 
-    results=macau.macau(Y=df,Ytest=df_val,side=[None,None,None],num_latent=num_latents,verbose=True,burnin=num_burninr,nsamples=num_samples,precision="adaptive",save_prefix=save_prefix)
+    results=macau.macau(Y=df,Ytest=df_val,side=[None,None,None],num_latent=num_latents,verbose=True,burnin=num_burnin,nsamples=num_samples,precision="adaptive",save_prefix=save_prefix)
 
     print("TEST RMSE : "+str(results.rmse_test))
 

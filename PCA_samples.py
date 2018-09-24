@@ -4,8 +4,6 @@ import numpy as np
 import sys
 from sklearn.decomposition import PCA
 
-dir_path=sys.argv[1:][0] #Should be like "./results_macau_70/"
-
 
 
 def PCA_macau_samples(dir_path,idx_train=None,idx_val=None):
@@ -19,8 +17,8 @@ def PCA_macau_samples(dir_path,idx_train=None,idx_val=None):
     for n in np.linspace(10,N_samples,50,dtype='int'):
         concat_lat=np.concatenate((concat_lat,np.loadtxt(dir_path+str(N_latents)+"_macau-sample%d-U1-latents.csv"%n,delimiter=",")))
 
-    if idx_train:
-        concat_subset=concat_lat[idx_train,:]
+    if idx_train is not None:
+        concat_subset=concat_lat[:,idx_train]
     else:
         concat_subset=concat_lat
 
@@ -35,10 +33,11 @@ def PCA_macau_samples(dir_path,idx_train=None,idx_val=None):
     pca_latents=pca.transform(concat_lat.T)
 
     np.save(dir_path+"pca_latents",pca_latents)
-    print(n_kept)
+    print("Number of dimensions kept {}".format(n_kept))
 
     return(pca_latents[idx_train,:],pca_latents[idx_val,:])
 
 
 if __name__=="__main__":
+    dir_path=sys.argv[1:][0] #Should be like "./results_macau_70/"
     PCA_macau_samples(dir_path)
