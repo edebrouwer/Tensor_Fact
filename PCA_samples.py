@@ -7,7 +7,6 @@ from sklearn.decomposition import PCA
 dir_path=sys.argv[1:][0] #Should be like "./results_macau_70/"
 
 
-
 def PCA_macau_samples(dir_path,idx_train=None,idx_val=None):
     sum_sim=np.load(dir_path+"sum_sim.npy").item()
     N_latents=sum_sim["N_latents"]
