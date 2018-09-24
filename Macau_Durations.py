@@ -4,11 +4,12 @@ import macau
 import pandas as pd
 import numpy as np
 
+from sklearn.model_selection import KFold
 import os
 import shutil
-
-from PCA_samples import Macau_PCA_samples
-
+from macau_mimic import run_macau
+from PCA_samples import PCA_macau_samples
+from ray_logistic import run_ray_logistic
 parser=argparse.ArgumentParser(description="Bayesian Tensor Factorization")
 
 
@@ -24,8 +25,8 @@ covariates_path=files_path+"complete_covariates.csv"
 
 
 tensor=pd.read_csv(tensor_path)
-covariates=pd.read_csv(covariates_path).sort_values(by="UNIQUE_ID").as_matrix()[:,1:]
-tags=pd.read_csv("~/Data/MIMIC/complete_death_tags.csv").sort_values("UNIQUE_ID")
+covariates=pd.read_csv(covariates_path).sort_values(by="UNIQUE_ID").values[:,1:]
+tags=pd.read_csv("~/Data/MIMIC/complete_death_tags.csv").sort_values("UNIQUE_ID")[["DEATHTAG","UNIQUE_ID"]].values[:,0]
 
 num_patients=tensor["UNIQUE_ID"].nunique()
 
@@ -36,6 +37,6 @@ results_path=run_macau(num_latents=opt.latents,num_samples=opt.samples,num_burni
 for train_val_index, test_index in kf.split(np.arange(num_patients)):
 
     #train classifier using ray.
-    run_ray_logistic(results_path,tags,kf_val,train_val_index)
+    run_ray_logistic(results_path,tags,kf_val,train_val_index,"TEST_nested")
 
-    #Get the best parameters
+    #Should now retrieve the best parameters for each fold and retrain fully on the train+validation set.

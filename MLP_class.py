@@ -69,11 +69,11 @@ class latent_dataset(Dataset):
         self.latents=torch.Tensor(latents)
         self.tags=torch.Tensor(tags).float()
     def __len__(self):
-        return(self.latents.shape[0])
+        return(self.latents.size(0))
     def __getitem__(self,idx):
         return([self.latents[idx,:],self.tags[idx]])
     def get_dim(self):
-        return self.latents.shape[1]
+        return self.latents.size(1)
 
 def train_mod(model,dataloader,dataloader_val):
     optimizer=torch.optim.Adam(model.parameters(), lr=0.01)#,weight_decay=0.002)
