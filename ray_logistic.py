@@ -29,21 +29,21 @@ import sys
 
 
 if __name__=="__main__":
-    
+
 
     file_path=sys.argv[1:][0] # This file should contain a numpy array with the latents and the label as first columnself.
-    
+
 
     latents=np.load(file_path)
     tags=pd.read_csv("~/Data/MIMIC/complete_death_tags.csv").sort_values("UNIQUE_ID")
-    
+
     run_ray_logistic(file_path,tags,None,None)
 
 
 
 def run_ray_logistic(latents_path,tags,kf,idx,log_name):
 
-    ray.init(num_cpus=10,num_gpus=2)
+    ray.init(num_cpus=5,num_gpus=1)
     data_train_list=[]
     data_val_list=[]
     for train_idx, val_idx in kf.split(idx):
@@ -51,7 +51,7 @@ def run_ray_logistic(latents_path,tags,kf,idx,log_name):
         val_idx=idx[val_idx] #Indexes from the full tensor.
 
         latents_train, latents_val=PCA_macau_samples(dir_path=latents_path,idx_train=train_idx,idx_val=val_idx)
-       
+
         data_train_list+=[latent_dataset(latents_train,tags[train_idx])]
         data_val_list+=[latent_dataset(latents_val,tags[val_idx])]
 
@@ -72,7 +72,7 @@ def run_ray_logistic(latents_path,tags,kf,idx,log_name):
                 self.mod+=[MLP_class_mod(get_pinned_object(data_train)[fold].get_dim())]
             #self.mod=MLP_class_mod(get_pinned_object(data_train).get_dim())
 
-                self.dataloader += [DataLoader(get_pinned_object(data_train)[fold],batch_size=5000,shuffle=True,num_workers=2)]
+                self.dataloader += [DataLoader(get_pinned_object(data_train)[fold],batch_size=5000,shuffle=True)]
                 #self.dataloader_val += DataLoader(get_pinned_object(data_val),batch_size=1000,shuffle=False)
             #self.dataloader=DataLoader(data_train,batch_size=65000,shuffle=True,num_workers=2)
             self.timestep=0
@@ -95,7 +95,7 @@ def run_ray_logistic(latents_path,tags,kf,idx,log_name):
             for fold in range(self.nfolds):
                 optimizer = torch.optim.Adam(self.mod[fold].parameters(), lr=l_r, weight_decay=self.config["L2"])
 
-                criterion=nn.BCELoss()
+                criterion=nn.BCEWithLogitsLoss()
                 total_loss=0
                 for idx, sampled_batch in enumerate(self.dataloader[fold]):
                     optimizer.zero_grad()
@@ -117,22 +117,23 @@ def run_ray_logistic(latents_path,tags,kf,idx,log_name):
             #return TrainingResult(mean_accuracy=(auc_mean_folds/self.nfolds),timesteps_this_iter=1)
             return {"mean_accuracy":(auc_mean_folds/self.nfolds),"time_steps_this_iter":1}
         def _save(self,checkpoint_dir):
-            path_list=[]
+            print("Saving")
+            path=os.path.join(checkpoint_dir,"checkpoint")
+            state_dict_list=[]
             for fold in range(self.nfolds):
-                name="chekpoint_fold"+str(fold)
-                path=os.path.join(checkpoint_dir,name)
-                path_list+=[path]
-                torch.save(self.mod.state_dict(),path)
+                state_dict_list+=[self.mod[fold].state_dict()]
+            torch.save(state_dict_list,path)
             print("SAVIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIING")
             #raise Exception()
             #torch.cuda.empty_cache()
             np.save(path+"_timestep.npy",self.timestep)
-            return path_list
+            return path
         def _restore(self,checkpoint_path):
             print("LOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADING")
+            state_dict_list=torch.load(checkpoint_path)
             for fold in range(self.nfolds):
-                self.mod[fold].load_state_dict(torch.load(checkpoint_path[fold]))
-            self.timestep=np.load(checkpoint_path[fold]+"_timestep.npy").item()
+                self.mod[fold].load_state_dict(state_dict_list[fold])
+            self.timestep=np.load(checkpoint_path+"_timestep.npy").item()
 
 
 
