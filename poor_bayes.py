@@ -23,6 +23,7 @@ dataloader=DataLoader(data_train,batch_size=5000,shuffle=True)
 device=torch.device("cuda:0")
 mod_num=3 #number of models to train.
 results_dict=dict()
+config=dict()
 for mod_idx in range(mod_num):
     name=f"model_{mod_idx}"
     config["L2"]=10**(3*random.random()-8)
@@ -46,12 +47,12 @@ for mod_idx in range(mod_num):
             loss.backward()
             optimizer.step()
         with torch.no_grad():
-            [preds,class_preds]=mod.forward(get_pinned_object(data_val).cov_u.to(device),get_pinned_object(data_val).data_matrix.to(device),get_pinned_object(data_val).observed_mask.to(device))
-            targets=get_pinned_object(data_val).data_matrix.to(device)
-            targets.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(device),0)
-            preds.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(device),0)
+            [preds,class_preds]=mod.forward(data_val.cov_u.to(device),data_val.data_matrix.to(device),data_val.observed_mask.to(device))
+            targets=data_val.data_matrix.to(device)
+            targets.masked_fill_(1-data_val.observed_mask.to(device),0)
+            preds.masked_fill_(1-data_val.observed_mask.to(device),0)
             #loss_val=class_criterion(class_preds,get_pinned_object(data_val).tags.to(self.device)).cpu().detach().numpy()
-            loss_val=roc_auc_score(get_pinned_object(data_val).tags,class_preds.cpu())
+            loss_val=roc_auc_score(data_val.tags,class_preds.cpu())
             print("Validation Loss")
             print(loss_val)
     results_dict["name"]=loss_val
