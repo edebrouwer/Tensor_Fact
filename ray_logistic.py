@@ -69,7 +69,9 @@ def run_ray_logistic(latents_path,tags,kf,idx,log_name):
             self.dataloader=[]
             self.data_val=get_pinned_object(data_val)
             for fold in range(self.nfolds):
-                self.mod+=[MLP_class_mod(get_pinned_object(data_train)[fold].get_dim())]
+                mod_fold=MLP_class_mod(get_pinned_object(data_train)[fold].get_dim())
+                mod_fold.to(self.device)
+                self.mod+=[mod_fold]
             #self.mod=MLP_class_mod(get_pinned_object(data_train).get_dim())
 
                 self.dataloader += [DataLoader(get_pinned_object(data_train)[fold],batch_size=5000,shuffle=True)]
@@ -99,16 +101,16 @@ def run_ray_logistic(latents_path,tags,kf,idx,log_name):
                 total_loss=0
                 for idx, sampled_batch in enumerate(self.dataloader[fold]):
                     optimizer.zero_grad()
-                    target=sampled_batch[1]
-                    preds=self.mod[fold].fwd(sampled_batch[0])
+                    target=sampled_batch[1].to(self.device)
+                    preds=self.mod[fold].fwd(sampled_batch[0].to(self.device))
                     loss = criterion(preds, target)
                     loss.backward()
                     optimizer.step()
 
                 with torch.no_grad():
                     loss_val=0
-                    target=self.data_val[fold].tags
-                    preds=self.mod[fold].fwd(self.data_val[fold].latents)
+                    target=self.data_val[fold].tags.to(self.device)
+                    preds=self.mod[fold].fwd(self.data_val[fold].latents.to(self.device))
                     loss_val+=roc_auc_score(target,preds)
                     auc_mean=loss_val
                 #rmse_val_loss_computed=(np.sqrt(loss_val.detach().cpu().numpy()/(i_val+1)))
@@ -144,6 +146,7 @@ def run_ray_logistic(latents_path,tags,kf,idx,log_name):
     exp={
             'run':"my_class",
             'num_samples':50,
+            'trial_resources':{"gpu":1},
             'stop':{"training_iteration":100},
             'config':{
             "L2":lambda spec: 10**(8*random.random()-4),

@@ -59,7 +59,7 @@ class GRU_teach(nn.Module):
             y_input=output[:,:,t]
         #Classification task.
         out_class=F.relu(self.classif_layer1(h_t))
-        out_class=F.sigmoid(self.classif_layer2(out_class))
+        out_class=F.sigmoid(self.classif_layer2(out_class)).squeeze(1)
         return [output,out_class]
 
     def reparametrize(self,mu,logvar):
@@ -78,7 +78,7 @@ class GRU_teach_dataset(Dataset):
         d_idx=dict(zip(data_short["UNIQUE_ID"].unique(),np.arange(data_short["UNIQUE_ID"].nunique())))
         data_short["PATIENT_IDX"]=data_short["UNIQUE_ID"].map(d_idx)
 
-        idx_mat=data_short[["PATIENT_IDX","LABEL_CODE","TIME_STAMP","VALUENORM"]].as_matrix()
+        idx_mat=data_short[["PATIENT_IDX","LABEL_CODE","TIME_STAMP","VALUENORM"]].values
 
         idx_tens=torch.LongTensor(idx_mat[:,:-1])
         val_tens=torch.Tensor(idx_mat[:,-1])
@@ -95,7 +95,7 @@ class GRU_teach_dataset(Dataset):
         df_cov["PATIENT_IDX"]=df_cov["UNIQUE_ID"].map(d_idx)
         df_cov.set_index("PATIENT_IDX",inplace=True)
         df_cov.sort_index(inplace=True)
-        self.cov_u=torch.tensor(df_cov.as_matrix()[:,1:]).to(torch.float)
+        self.cov_u=torch.tensor(df_cov.values[:,1:]).to(torch.float)
 
         #Death tags
         tags_df=pd.read_csv(file_path+tag_path)
@@ -235,8 +235,7 @@ if __name__=="__main__":
             'stop':{"training_iteration":200},
             'trial_resources':{
                             "gpu":1,
-                            "cpu":1
-                        }
+                            "cpu":1},
             'config':{
             "L2":lambda spec: 10**(3*random.random()-8),
             "mixing_ratio":lambda spec : random.random()
