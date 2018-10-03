@@ -221,7 +221,6 @@ if __name__=="__main__":
     data_val=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/Clean_data/",csv_file_serie="LSTM_tensor_val.csv",cov_path="LSTM_covariates_val.csv",tag_path="LSTM_death_tags_val.csv"))
     data_test=pin_in_object_store(GRU_teach_dataset(file_path="~/Data/MIMIC/Clean_data/",csv_file_serie="LSTM_tensor_test.csv",cov_path="LSTM_covariates_test.csv",tag_path="LSTM_death_tags_test.csv"))
 
-
     tune.register_trainable("my_class", train_class)
 
     hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="mean_accuracy",max_t=200,grace_period=15)

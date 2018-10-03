@@ -64,6 +64,21 @@ class MLP_class_mod(nn.Module):
         out=F.sigmoid(self.layer_3(out)).squeeze(1)
         return(out)
 
+
+class MLP_reg_mod(nn.Module):
+    def __init__(self,input_dim):
+        super(MLP_class_mod,self).__init__()
+        self.layer_1=nn.Linear(input_dim,200)
+        self.layer_1bis=nn.Linear(200,70)
+        self.layer_2=nn.Linear(70,20)
+        self.layer_3=nn.Linear(20,1)
+    def fwd(self,x):
+        out=F.tanh(self.layer_1(x))
+        out=F.tanh(self.layer_1bis(out))
+        out=F.tanh(self.layer_2(out))
+        out=(self.layer_3(out)).squeeze(1)
+        return(out)
+
 class latent_dataset(Dataset):
     def __init__(self,latents,tags):
         self.latents=torch.Tensor(latents)
