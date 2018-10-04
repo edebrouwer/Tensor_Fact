@@ -13,9 +13,9 @@ from sklearn.metrics import roc_auc_score
 import random
 import ray
 import ray.tune as tune
-from ray.tune.async_hyperband import AsyncHyperBandScheduler
+from ray.tune.schedulers import AsyncHyperBandScheduler
 #from ray.tune.schedulers import AsyncHyperBandScheduler,HyperBandScheduler
-from ray.tune import Trainable, TrainingResult
+from ray.tune import Trainable
 from ray.tune.util import pin_in_object_store, get_pinned_object
 import os
 import matplotlib
