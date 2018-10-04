@@ -30,6 +30,8 @@ mod.load_state_dict(torch.load("GRU_mean_unique_model.pt"))
 
 
 fpr,tpr,_ = roc_curve(data_val.tags,mod.forward(torch.transpose(data_val.data_matrix.to(device),1,2)).cpu().detach().numpy())
+np.save("./plots/fpr_Mean.npy",fpr)
+np.save("./plots/tpr_Mean.npy",tpr)
 roc_auc=auc(fpr,tpr)
 plt.figure()
 lw = 1
@@ -41,6 +43,8 @@ mod.float()
 mod.to(device)
 mod.load_state_dict(torch.load("GRU_simple_unique_model.pt"))
 fpr,tpr,_ = roc_curve(data_val.tags,mod.forward(torch.transpose(data_val.data_matrix.to(device),1,2)).cpu().detach().numpy())
+np.save("./plots/fpr_Simple.npy",fpr)
+np.save("./plots/tpr_Simple.npy",tpr)
 
 roc_auc=auc(fpr,tpr)
 plt.plot(fpr,tpr, color='royalblue',
@@ -100,6 +104,8 @@ for epoch in range(60):
     print(auc_mean)
 with torch.no_grad():
     fpr,tpr,_ = roc_curve(data_val.tags,mod.fwd(torch.tensor(data_val.latents).float()).detach().numpy())
+    np.save("./plots/fpr_Macau.npy",fpr)
+    np.save("./plots/tpr_Macau.npy",tpr)
     roc_auc=auc(fpr,tpr)
 
     plt.plot(fpr, tpr, color='green',
