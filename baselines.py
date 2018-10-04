@@ -52,8 +52,8 @@ class GRU_mod(nn.Module):
         return(pred[0,:,0])
 
 
-class GRU_mean(nn.Module):
-    def __init__(self,input_dim,mean_feats,device,cov_dim,latents=100,imputation_mode="mean"):
+class GRU_mean_with_covs(nn.Module):
+    def __init__(self,input_dim,mean_feats,device,cov_dim=None,latents=100,imputation_mode="mean"):
         #mean_feats should be a torch vector containing the computed means of each features for imputation.
         #cov dim is the dimension of the covariates
         super(GRU_mean,self).__init__()
@@ -72,6 +72,7 @@ class GRU_mean(nn.Module):
         self.classif_layer1bis=nn.Linear(100,100)
         self.classif_layer2=nn.Linear(100,1)
         self.device=device
+
         self.beta_layer=nn.Linear(cov_dim,latents)
 
     def forward(self,x,covs):
@@ -84,6 +85,66 @@ class GRU_mean(nn.Module):
         else:
             raise ValueError("Not a valid imputation option")
         out,h_n=self.layer1(x,h_0)
+        pred=F.relu(self.classif_layer1(h_n))
+        pred=F.relu(self.classif_layer1bis(pred))
+        pred=F.sigmoid(self.classif_layer2(pred))
+        return(pred[0,:,0])
+
+    def impute(self,x):
+        #x is a batch X T x input_dim tensor
+        #Replace NANs by the corresponding mean_values.
+        n_batch=x.size(0)
+        n_t=x.size(1)
+        x_mean=self.mean_feats.repeat(n_batch,n_t,1).to(self.device) #Tensor with only the means
+        non_nan_mask=(x==x)
+        x_mean[non_nan_mask]=x[non_nan_mask]
+        return(x_mean)
+
+    def impute_simple(self,x):
+        n_batch=x.size(0)
+        n_t=x.size(1)
+
+        observed_mask=(x==x) #1 if observed, 0 otherwise
+        Delta=torch.zeros(x.size(),device=self.device) #
+        #print(Delta.dtype)
+        #print(observed_mask.dtype)
+        for idt in range(1,n_t):
+            a=torch.zeros((n_batch,x.size(2)),device=self.device).masked_scatter_(1-observed_mask[:,idt-1,:],Delta[:,idt-1,:])
+            #a=(1-observed_mask[:,idt-1,:])*Delta[:,idt-1,:]
+            Delta[:,idt,:]=torch.ones((n_batch,x.size(2)),device=self.device)+a#(1-observed_mask[:,idt-1,:])*Delta[:,idt-1,:]
+        return torch.cat((self.impute(x),observed_mask.float(),Delta),dim=2)
+
+class GRU_mean(nn.Module):
+    def __init__(self,input_dim,mean_feats,device,latents=100,imputation_mode="mean"):
+        #mean_feats should be a torch vector containing the computed means of each features for imputation.
+        #cov dim is the dimension of the covariates
+        super(GRU_mean,self).__init__()
+        if imputation_mode=="simple":
+            self.imput="simple"
+            self.input_dim=3*input_dim
+        elif imputation_mode=="mean":
+            self.imput="mean"
+            self.input_dim=input_dim
+        else:
+            raise ValueError("Wrong imputation mode")
+
+        self.mean_feats=mean_feats
+        self.layer1=nn.GRU(self.input_dim,latents,1,batch_first=True)
+        self.classif_layer1=nn.Linear(latents,100)
+        self.classif_layer1bis=nn.Linear(100,100)
+        self.classif_layer2=nn.Linear(100,1)
+        self.device=device
+
+    def forward(self,x,covs):
+        #x is a batch X  T x input_dim tensor
+
+        if self.imput=="mean":
+            x=self.impute(x)
+        elif self.imput=="simple":
+            x=self.impute_simple(x)
+        else:
+            raise ValueError("Not a valid imputation option")
+        out,h_n=self.layer1(x)
         pred=F.relu(self.classif_layer1(h_n))
         pred=F.relu(self.classif_layer1bis(pred))
         pred=F.sigmoid(self.classif_layer2(pred))
