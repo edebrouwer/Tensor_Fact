@@ -16,6 +16,8 @@ from sklearn.metrics import roc_auc_score, roc_curve, auc
 from sklearn.model_selection import train_test_split
 import scipy.interpolate as interpolate
 
+from GRU_teach import GRU_teach_dataset, GRU_teach
+
 means_df=pd.Series.from_csv("~/Data/MIMIC/mean_features.csv")
 means_vec=torch.tensor(means_df.as_matrix(),dtype=torch.float)
 data_val=LSTMDataset_ByPat(csv_file_serie="LSTM_tensor_val.csv",file_path="~/Data/MIMIC/",cov_path="LSTM_covariates_val",tag_path="LSTM_death_tags_val.csv")
