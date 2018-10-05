@@ -127,8 +127,8 @@ with torch.no_grad():
 data_train=GRU_teach_dataset(file_path="~/Data/MIMIC/Clean_data/")
 data_val=GRU_teach_dataset(file_path="~/Data/MIMIC/Clean_data/",csv_file_serie="LSTM_tensor_val.csv",cov_path="LSTM_covariates_val.csv",tag_path="LSTM_death_tags_val.csv")
 
-L2=
-mixing_ratio=
+L2=5.98239163e-8
+mixing_ratio=0.92541
 
 device=torch.device("cuda:0")
 mod=GRU_teach(self.device,data_train.cov_u.size(1),data_train.data_matrix.size(1))
@@ -179,7 +179,7 @@ with torch.no_grad():
     fpr,tpr,_ = roc_curve(data_val.tags,class_preds.cpu())
     np.save("./plots/fpr_Macau.npy",fpr)
     np.save("./plots/tpr_Macau.npy",tpr)
-r   oc_auc=auc(fpr,tpr)
+    roc_auc=auc(fpr,tpr)
 
 
 
