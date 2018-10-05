@@ -139,17 +139,17 @@ mod.to(self.device)
 
 dataloader=DataLoader(data_train,batch_size=5000,shuffle=True,num_workers=2)
 
-for epoch in range(100):
+for epoch in range(200):
     if epoch<50:
-        l_r=0.0005
+        l_r=1
     elif epoch<100:
-        l_r=0.00015
+        l_r=0.3
     elif epoch<150:
-        l_r=0.00005
+        l_r=0.1
     else:
-        l_r=0.00001
+        l_r=0.02
 
-    optimizer = torch.optim.Adam(mod.parameters(), lr=l_r, weight_decay=L2)
+    optimizer = torch.optim.Adam(mod.parameters(), lr=l_r*0.0005, weight_decay=L2)
 
     criterion=nn.MSELoss(reduce=False,size_average=False)
     class_criterion=nn.BCELoss()
