@@ -70,6 +70,9 @@ mod=MLP_class_mod(data_train.get_dim())
 dataloader = DataLoader(data_train,batch_size=5000,shuffle=True,num_workers=2)
 dataloader_val= DataLoader(data_val,batch_size=1000,shuffle=False)
 
+print(data_val.tags.shape)
+print(data_val.latents.shape)
+
 for epoch in range(60):
 
     if epoch<30:
@@ -102,6 +105,7 @@ for epoch in range(60):
     #rmse_val_loss_computed=(np.sqrt(loss_val.detach().cpu().numpy()/(i_val+1)))
 
     print(auc_mean)
+
 with torch.no_grad():
     fpr,tpr,_ = roc_curve(data_val.tags,mod.fwd(torch.tensor(data_val.latents).float()).detach().numpy())
     np.save("./plots/fpr_Macau.npy",fpr)
@@ -110,6 +114,63 @@ with torch.no_grad():
 
     plt.plot(fpr, tpr, color='green',
     lw=lw, label='ROC Macau curve (area = %0.2f)' % roc_auc)
+
+#GRU_teach model.
+data_train=GRU_teach_dataset(file_path="~/Data/MIMIC/Clean_data/")
+data_val=GRU_teach_dataset(file_path="~/Data/MIMIC/Clean_data/",csv_file_serie="LSTM_tensor_val.csv",cov_path="LSTM_covariates_val.csv",tag_path="LSTM_death_tags_val.csv")
+
+L2=
+mixing_ratio=
+
+device=torch.device("cuda:0")
+mod=GRU_teach(self.device,data_train.cov_u.size(1),data_train.data_matrix.size(1))
+mod.float()
+mod.to(self.device)
+
+dataloader=DataLoader(data_train,batch_size=5000,shuffle=True,num_workers=2)
+
+for epoch in range(100):
+    if epoch<50:
+        l_r=0.0005
+    elif epoch<100:
+        l_r=0.00015
+    elif epoch<150:
+        l_r=0.00005
+    else:
+        l_r=0.00001
+
+    optimizer = torch.optim.Adam(mod.parameters(), lr=l_r, weight_decay=L2)
+
+    criterion=nn.MSELoss(reduce=False,size_average=False)
+    class_criterion=nn.BCELoss()
+
+    for i_batch,sampled_batch in enumerate(self.dataloader):
+        optimizer.zero_grad()
+        [preds,class_preds]=self.mod.forward(sampled_batch[2].to(self.device),sampled_batch[0].to(self.device),sampled_batch[1].to(self.device))
+        targets=sampled_batch[0].to(self.device)
+        targets.masked_fill_(1-sampled_batch[1].to(self.device),0)
+        preds.masked_fill_(1-sampled_batch[1].to(self.device),0)
+        loss=(1-self.config["mixing_ratio"])*(torch.sum(criterion(preds,targets))/torch.sum(sampled_batch[1].to(self.device)).float())+self.config["mixing_ratio"]*class_criterion(class_preds,sampled_batch[3].to(self.device))
+        loss.backward()
+        optimizer.step()
+
+    with torch.no_grad():
+        [preds,class_preds]=self.mod.forward(get_pinned_object(data_val).cov_u.to(self.device),get_pinned_object(data_val).data_matrix.to(self.device),get_pinned_object(data_val).observed_mask.to(self.device))
+        targets=get_pinned_object(data_val).data_matrix.to(self.device)
+        targets.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(self.device),0)
+        preds.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(self.device),0)
+        #loss_val=class_criterion(class_preds,get_pinned_object(data_val).tags.to(self.device)).cpu().detach().numpy()
+        loss_val=roc_auc_score(get_pinned_object(data_val).tags,class_preds.cpu())
+        print("Validation Loss")
+        print(loss_val)
+
+        [preds,class_preds]=self.mod.forward(get_pinned_object(data_test).cov_u.to(self.device),get_pinned_object(data_test).data_matrix.to(self.device),get_pinned_object(data_test).observed_mask.to(self.device))
+        targets=get_pinned_object(data_test).data_matrix.to(self.device)
+        targets.masked_fill_(1-get_pinned_object(data_test).observed_mask.to(self.device),0)
+        preds.masked_fill_(1-get_pinned_object(data_test).observed_mask.to(self.device),0)
+        #loss_val=class_criterion(class_preds,get_pinned_object(data_val).tags.to(self.device)).cpu().detach().numpy()
+        loss_test=roc_auc_score(get_pinned_object(data_test).tags,class_preds.cpu())
+
 
 
 
