@@ -46,7 +46,7 @@ class GRU_teach(nn.Module):
             y_input=output[:,:,t]
         #Classification task.
         out_class=F.relu(self.classif_layer1(h_t))
-        out_class=F.sigmoid(self.classif_layer2(out_class)).squeeze(1)
+        out_class=(self.classif_layer2(out_class)).squeeze(1)
         return [output,out_class]
 
     def reparametrize(self,mu,logvar):

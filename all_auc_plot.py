@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from MLP_class import MLP_class_mod, latent_dataset
 
@@ -137,40 +138,8 @@ mod=GRU_teach(device,data_train.cov_u.size(1),data_train.data_matrix.size(1))
 mod.float()
 mod.to(device)
 
-dataloader=DataLoader(data_train,batch_size=5000,shuffle=True,num_workers=2)
-
-for epoch in range(200):
-    if epoch<50:
-        l_r=1
-    elif epoch<100:
-        l_r=0.3
-    elif epoch<150:
-        l_r=0.1
-    else:
-        l_r=0.02
-
-    optimizer = torch.optim.Adam(mod.parameters(), lr=l_r*0.0005, weight_decay=L2)
-
-    criterion=nn.MSELoss(reduce=False,size_average=False)
-    class_criterion=nn.BCELoss()
-
-    for i_batch,sampled_batch in enumerate(dataloader):
-        optimizer.zero_grad()
-        [preds,class_preds]=mod.forward(sampled_batch[2].to(device),sampled_batch[0].to(device),sampled_batch[1].to(device))
-        targets=sampled_batch[0].to(device)
-        targets.masked_fill_(1-sampled_batch[1].to(device),0)
-        preds.masked_fill_(1-sampled_batch[1].to(device),0)
-        loss=(1-mixing_ratio)*(torch.sum(criterion(preds,targets))/torch.sum(sampled_batch[1].to(device)).float())+mixing_ratio*class_criterion(class_preds,sampled_batch[3].to(device))
-        loss.backward()
-        optimizer.step()
-
-    with torch.no_grad():
-        [preds,class_preds]=mod.forward(data_val.cov_u.to(device),data_val.data_matrix.to(device),data_val.observed_mask.to(device))
-        #loss_val=class_criterion(class_preds,get_pinned_object(data_val).tags.to(self.device)).cpu().detach().numpy()
-        loss_val=roc_auc_score(data_val.tags,class_preds.cpu())
-        print("Validation Loss")
-        print(loss_val)
-
+state_dict=torch.load("./poor_bayes_models/model_132.pt")
+mod.load_state_dict(state_dict)
 
 
 
@@ -179,10 +148,10 @@ with torch.no_grad():
     targets=data_val.data_matrix.to(device)
     #loss_val=class_criterion(class_preds,get_pinned_object(data_val).tags.to(self.device)).cpu().detach().numpy()
     fpr,tpr,_ = roc_curve(data_val.tags,class_preds.cpu())
-    np.save("./plots/fpr_Macau.npy",fpr)
-    np.save("./plots/tpr_Macau.npy",tpr)
+    np.save("./plots/fpr_GRU.npy",fpr)
+    np.save("./plots/tpr_GRU.npy",tpr)
     roc_auc=auc(fpr,tpr)
-
+    print(roc_auc)
 
 
 
