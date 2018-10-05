@@ -59,7 +59,7 @@ class GRU_teach(nn.Module):
             y_input=output[:,:,t]
         #Classification task.
         out_class=F.relu(self.classif_layer1(h_t))
-        out_class=F.sigmoid(self.classif_layer2(out_class)).squeeze(1)
+        out_class=self.classif_layer2(out_class).squeeze(1)
         return [output,out_class]
 
     def reparametrize(self,mu,logvar):
@@ -173,7 +173,7 @@ class train_class(Trainable):
         optimizer = torch.optim.Adam(self.mod.parameters(), lr=l_r, weight_decay=self.config["L2"])
 
         criterion=nn.MSELoss(reduce=False,size_average=False)
-        class_criterion=nn.BCELoss()
+        class_criterion=nn.BCEWithLogitsLoss()
 
         for i_batch,sampled_batch in enumerate(self.dataloader):
             optimizer.zero_grad()
