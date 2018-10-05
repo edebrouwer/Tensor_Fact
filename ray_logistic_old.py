@@ -96,21 +96,26 @@ class train_class(Trainable):
 
 file_path=sys.argv[1:][0] # This file should contain a numpy array with the latents and the label as first columnself.
 
-ray.init(num_cpus=10)
+ray.init(num_cpus=10,num_gpus=1)
 
 
 
 latents=np.load(file_path)
-n_train=pd.read_csv("~/Data/MIMIC/LSTM_tensor_train.csv")["UNIQUE_ID"].nunique()
+n_train=pd.read_csv("~/Data/MIMIC/Clean_data/LSTM_tensor_train.csv")["UNIQUE_ID"].nunique()
+n_val=pd.read_csv("~/Data/MIMIC/Clean_data/LSTM_tensor_val.csv")["UNIQUE_ID"].nunique()
 latents_train=latents[:n_train,:]
-latents_val=latents[n_train:,:]
+latents_val=latents[n_train:n_train+n_val,:]
+print(latents_train.shape)
+print(latents_val.shape)
 
-
-tags_train=pd.read_csv("~/Data/MIMIC/LSTM_death_tags_train.csv").sort_values("UNIQUE_ID")
+tags_train=pd.read_csv("~/Data/MIMIC/Clean_data/LSTM_death_tags_train.csv").sort_values("UNIQUE_ID")
 tag_mat_train=tags_train[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 
-tags_val=pd.read_csv("~/Data/MIMIC/LSTM_death_tags_val.csv").sort_values("UNIQUE_ID")
+
+tags_val=pd.read_csv("~/Data/MIMIC/Clean_data/LSTM_death_tags_val.csv").sort_values("UNIQUE_ID")
 tag_mat_val=tags_val[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
+print(tag_mat_train.shape)
+print(tag_mat_val.shape)
 
 data_train=pin_in_object_store(latent_dataset(latents_train,tag_mat_train))
 data_val=pin_in_object_store(latent_dataset(latents_val,tag_mat_val))
@@ -121,11 +126,11 @@ hyperband=AsyncHyperBandScheduler(time_attr="training_iteration",reward_attr="me
 
 exp={
         'run':"my_class",
-        'repeat':50,
+        'num_samples':30,
         'stop':{"training_iteration":100},
         'config':{
         "L2":lambda spec: 10**(5*random.random()-6)
     }
  }
 
-tune.run_experiments({"logistic_pca_50samples":exp},scheduler=hyperband)
+tune.run_experiments({"logistic_pca_old":exp},scheduler=hyperband)

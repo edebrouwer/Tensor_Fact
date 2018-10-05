@@ -52,14 +52,15 @@ lw=lw, label='ROC curve Simple imputation (area = %0.2f)' % roc_auc)
 
 #Macau Model
 latents=np.load("results_macau_70/pca_latents.npy")
-n_train=pd.read_csv("~/Data/MIMIC/LSTM_tensor_train.csv")["UNIQUE_ID"].nunique()
+n_train=pd.read_csv("~/Data/MIMIC/Clean_data/LSTM_tensor_train.csv")["UNIQUE_ID"].nunique()
+n_val=pd.read_csv("~/Data/MIMIC/Clean_data/LSTM_tensor_val.csv")["UNIQUE_ID"].nunique()
 latents_train=latents[:n_train,:]
-latents_val=latents[n_train:,:]
+latents_val=latents[n_train:n_train+n_val,:]
 
-tags_train=pd.read_csv("~/Data/MIMIC/LSTM_death_tags_train.csv").sort_values("UNIQUE_ID")
+tags_train=pd.read_csv("~/Data/MIMIC/Clean_data/LSTM_death_tags_train.csv").sort_values("UNIQUE_ID")
 tag_mat_train=tags_train[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 
-tags_val=pd.read_csv("~/Data/MIMIC/LSTM_death_tags_val.csv").sort_values("UNIQUE_ID")
+tags_val=pd.read_csv("~/Data/MIMIC/Clean_data/LSTM_death_tags_val.csv").sort_values("UNIQUE_ID")
 tag_mat_val=tags_val[["DEATHTAG","UNIQUE_ID"]].as_matrix()[:,0]
 
 data_train=latent_dataset(latents_train,tag_mat_train)
@@ -68,7 +69,13 @@ data_val=latent_dataset(latents_val,tag_mat_val)
 mod=MLP_class_mod(data_train.get_dim())
 
 dataloader = DataLoader(data_train,batch_size=5000,shuffle=True,num_workers=2)
-dataloader_val= DataLoader(data_val,batch_size=1000,shuffle=False)
+dataloader_val= DataLoader(data_val,batch_size=n_val,shuffle=False)
+
+print(latents.shape)
+print(n_train)
+print(tag_mat_train.shape)
+print(tag_mat_val.shape)
+
 
 print(data_val.tags.shape)
 print(data_val.latents.shape)
@@ -107,6 +114,7 @@ for epoch in range(60):
     print(auc_mean)
 
 with torch.no_grad():
+    
     fpr,tpr,_ = roc_curve(data_val.tags,mod.fwd(torch.tensor(data_val.latents).float()).detach().numpy())
     np.save("./plots/fpr_Macau.npy",fpr)
     np.save("./plots/tpr_Macau.npy",tpr)
@@ -174,7 +182,7 @@ for epoch in range(100):
 
 
 
-
+print("Start plots")
 plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
 plt.xlim([0.0, 1.0])
 plt.ylim([0.0, 1.05])
