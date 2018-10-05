@@ -114,7 +114,7 @@ for epoch in range(60):
     print(auc_mean)
 
 with torch.no_grad():
-    
+
     fpr,tpr,_ = roc_curve(data_val.tags,mod.fwd(torch.tensor(data_val.latents).float()).detach().numpy())
     np.save("./plots/fpr_Macau.npy",fpr)
     np.save("./plots/tpr_Macau.npy",tpr)
@@ -152,32 +152,34 @@ for epoch in range(100):
     criterion=nn.MSELoss(reduce=False,size_average=False)
     class_criterion=nn.BCELoss()
 
-    for i_batch,sampled_batch in enumerate(self.dataloader):
+    for i_batch,sampled_batch in enumerate(dataloader):
         optimizer.zero_grad()
-        [preds,class_preds]=self.mod.forward(sampled_batch[2].to(self.device),sampled_batch[0].to(self.device),sampled_batch[1].to(self.device))
-        targets=sampled_batch[0].to(self.device)
-        targets.masked_fill_(1-sampled_batch[1].to(self.device),0)
-        preds.masked_fill_(1-sampled_batch[1].to(self.device),0)
-        loss=(1-self.config["mixing_ratio"])*(torch.sum(criterion(preds,targets))/torch.sum(sampled_batch[1].to(self.device)).float())+self.config["mixing_ratio"]*class_criterion(class_preds,sampled_batch[3].to(self.device))
+        [preds,class_preds]=mod.forward(sampled_batch[2].to(device),sampled_batch[0].to(device),sampled_batch[1].to(device))
+        targets=sampled_batch[0].to(device)
+        targets.masked_fill_(1-sampled_batch[1].to(device),0)
+        preds.masked_fill_(1-sampled_batch[1].to(device),0)
+        loss=(1-config["mixing_ratio"])*(torch.sum(criterion(preds,targets))/torch.sum(sampled_batch[1].to(device)).float())+mixing_ratio*class_criterion(class_preds,sampled_batch[3].to(device))
         loss.backward()
         optimizer.step()
 
     with torch.no_grad():
-        [preds,class_preds]=self.mod.forward(get_pinned_object(data_val).cov_u.to(self.device),get_pinned_object(data_val).data_matrix.to(self.device),get_pinned_object(data_val).observed_mask.to(self.device))
-        targets=get_pinned_object(data_val).data_matrix.to(self.device)
-        targets.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(self.device),0)
-        preds.masked_fill_(1-get_pinned_object(data_val).observed_mask.to(self.device),0)
+        [preds,class_preds]=mod.forward(data_val.cov_u.to(device),data_val.data_matrix.to(device),data_val.observed_mask.to(device))
         #loss_val=class_criterion(class_preds,get_pinned_object(data_val).tags.to(self.device)).cpu().detach().numpy()
-        loss_val=roc_auc_score(get_pinned_object(data_val).tags,class_preds.cpu())
+        loss_val=roc_auc_score(data_val.tags,class_preds.cpu())
         print("Validation Loss")
         print(loss_val)
 
-        [preds,class_preds]=self.mod.forward(get_pinned_object(data_test).cov_u.to(self.device),get_pinned_object(data_test).data_matrix.to(self.device),get_pinned_object(data_test).observed_mask.to(self.device))
-        targets=get_pinned_object(data_test).data_matrix.to(self.device)
-        targets.masked_fill_(1-get_pinned_object(data_test).observed_mask.to(self.device),0)
-        preds.masked_fill_(1-get_pinned_object(data_test).observed_mask.to(self.device),0)
-        #loss_val=class_criterion(class_preds,get_pinned_object(data_val).tags.to(self.device)).cpu().detach().numpy()
-        loss_test=roc_auc_score(get_pinned_object(data_test).tags,class_preds.cpu())
+
+
+
+with torch.no_grad():
+    [preds,class_preds]=mod.forward(data_val.cov_u.to(device),data_val.data_matrix.to(device),data_val.observed_mask.to(device))
+    targets=get_pinned_object(data_val).data_matrix.to(device)
+    #loss_val=class_criterion(class_preds,get_pinned_object(data_val).tags.to(self.device)).cpu().detach().numpy()
+    fpr,tpr,_ = roc_curve(data_val.tags,class_preds.cpu())
+    np.save("./plots/fpr_Macau.npy",fpr)
+    np.save("./plots/tpr_Macau.npy",tpr)
+r   oc_auc=auc(fpr,tpr)
 
 
 
