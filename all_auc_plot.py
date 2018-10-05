@@ -16,7 +16,7 @@ from sklearn.metrics import roc_auc_score, roc_curve, auc
 from sklearn.model_selection import train_test_split
 import scipy.interpolate as interpolate
 
-from GRU_teach import GRU_teach_dataset, GRU_teach
+from GRU_utils import GRU_teach_dataset, GRU_teach
 
 means_df=pd.Series.from_csv("~/Data/MIMIC/mean_features.csv")
 means_vec=torch.tensor(means_df.as_matrix(),dtype=torch.float)
@@ -133,9 +133,9 @@ L2=5.98239163e-8
 mixing_ratio=0.92541
 
 device=torch.device("cuda:0")
-mod=GRU_teach(self.device,data_train.cov_u.size(1),data_train.data_matrix.size(1))
+mod=GRU_teach(device,data_train.cov_u.size(1),data_train.data_matrix.size(1))
 mod.float()
-mod.to(self.device)
+mod.to(device)
 
 dataloader=DataLoader(data_train,batch_size=5000,shuffle=True,num_workers=2)
 
@@ -160,7 +160,7 @@ for epoch in range(100):
         targets=sampled_batch[0].to(device)
         targets.masked_fill_(1-sampled_batch[1].to(device),0)
         preds.masked_fill_(1-sampled_batch[1].to(device),0)
-        loss=(1-config["mixing_ratio"])*(torch.sum(criterion(preds,targets))/torch.sum(sampled_batch[1].to(device)).float())+mixing_ratio*class_criterion(class_preds,sampled_batch[3].to(device))
+        loss=(1-mixing_ratio)*(torch.sum(criterion(preds,targets))/torch.sum(sampled_batch[1].to(device)).float())+mixing_ratio*class_criterion(class_preds,sampled_batch[3].to(device))
         loss.backward()
         optimizer.step()
 
@@ -176,7 +176,7 @@ for epoch in range(100):
 
 with torch.no_grad():
     [preds,class_preds]=mod.forward(data_val.cov_u.to(device),data_val.data_matrix.to(device),data_val.observed_mask.to(device))
-    targets=get_pinned_object(data_val).data_matrix.to(device)
+    targets=data_val.data_matrix.to(device)
     #loss_val=class_criterion(class_preds,get_pinned_object(data_val).tags.to(self.device)).cpu().detach().numpy()
     fpr,tpr,_ = roc_curve(data_val.tags,class_preds.cpu())
     np.save("./plots/fpr_Macau.npy",fpr)
