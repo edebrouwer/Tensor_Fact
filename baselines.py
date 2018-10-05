@@ -135,7 +135,7 @@ class GRU_mean(nn.Module):
         self.classif_layer2=nn.Linear(100,1)
         self.device=device
 
-    def forward(self,x,covs):
+    def forward(self,x):
         #x is a batch X  T x input_dim tensor
 
         if self.imput=="mean":

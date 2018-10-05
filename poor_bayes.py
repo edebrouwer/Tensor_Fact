@@ -31,21 +31,22 @@ def lr_select(i):
 
 if  __name__=="__main__":
 
+    outfile="./poor_bayes_models/"
     data_train=GRU_teach_dataset(file_path="~/Data/MIMIC/Clean_data/")
     data_val=GRU_teach_dataset(file_path="~/Data/MIMIC/Clean_data/",csv_file_serie="LSTM_tensor_val.csv",cov_path="LSTM_covariates_val.csv",tag_path="LSTM_death_tags_val.csv")
     data_test=GRU_teach_dataset(file_path="~/Data/MIMIC/Clean_data/",csv_file_serie="LSTM_tensor_test.csv",cov_path="LSTM_covariates_test.csv",tag_path="LSTM_death_tags_test.csv")
 
     dataloader=DataLoader(data_train,batch_size=5000,shuffle=True)
     device=torch.device("cuda:0")
-    mod_num=10 #number of models to train.
+    mod_num=100 #number of models to train.
     num_epochs=200
     results_dict=dict()
     config=dict()
     for mod_idx in range(mod_num):
-        name=f"model_{mod_idx}"
+        name=f"model_{mod_idx+100}"
         
         config["L2"]=10**(3*random.random()-8)
-        config["mixing_ratio"]=random.random()
+        config["mixing_ratio"]=+0.9+0.1*random.random()
         L2=config["L2"]
         mixing_ratio=config["mixing_ratio"]
 
@@ -72,6 +73,7 @@ if  __name__=="__main__":
                 optimizer.step()
             with torch.no_grad():
                 [preds,class_preds]=mod.forward(data_val.cov_u.to(device),data_val.data_matrix.to(device),data_val.observed_mask.to(device))
+                class_preds=F.sigmoid(class_preds)
                 targets=data_val.data_matrix.to(device)
                 targets.masked_fill_(1-data_val.observed_mask.to(device),0)
                 preds.masked_fill_(1-data_val.observed_mask.to(device),0)
@@ -79,6 +81,7 @@ if  __name__=="__main__":
                 loss_val=roc_auc_score(data_val.tags,class_preds.cpu())
                 #print("Validation Loss")
                 #print(loss_val)
-        results_dict["name"]=loss_val
+        config["AUC"]=loss_val
         print(f"Finished training model {mod_idx}. Validation AUC : {loss_val}")    
-        torch.save(mod.state_dict(),name+".pt")
+        torch.save(mod.state_dict(),outfile+name+".pt")
+        np.save(outfile+name+"_params_dict.npy",config)
